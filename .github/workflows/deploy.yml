@@ -33,6 +33,18 @@ jobs:
           node-version: 22
       - name: Κοινός κώδικας για τις functions
         run: node web/build.mjs
+      - name: Καθαρισμός κενών από τα κλειδιά
+        env:
+          K1: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          K2: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          K3: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          for v in "SUPABASE_ACCESS_TOKEN:$K1" "SUPABASE_DB_PASSWORD:$K2" "PROJECT_REF:$K3"; do
+            n=${v%%:*}; t=$(printf '%s' "${v#*:}" | tr -d '[:space:]')
+            echo "::add-mask::$t"; echo "$n=$t" >> "$GITHUB_ENV"
+          done
+          t=$(printf '%s' "$K1" | tr -d '[:space:]'); echo "token: μήκος ${#t}, μορφή $( [[ $t =~ ^sbp_[a-f0-9]{40}$ ]] && echo κανονική || echo νέα/άγνωστη )"
+          [[ $t =~ ^sbp_[a-f0-9]{40}$ ]] || echo "::warning title=token::Το SUPABASE_ACCESS_TOKEN έχει μήκος ${#t} — το εργαλείο θέλει sbp_ + 40 χαρακτήρες"
       - uses: supabase/setup-cli@v1
         with:
           version: latest
