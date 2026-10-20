@@ -4,11 +4,16 @@ project_id = "mega-gym"
 
 [functions.execute]
 verify_jwt = false
+entrypoint = "./functions/execute/index.js"
 [functions.admin]
 verify_jwt = false
+entrypoint = "./functions/admin/index.js"
 [functions.ai]
 verify_jwt = false
+entrypoint = "./functions/ai/index.js"
 [functions.tts]
 verify_jwt = false
+entrypoint = "./functions/tts/index.js"
 [functions.stt]
 verify_jwt = false
+entrypoint = "./functions/stt/index.js"
