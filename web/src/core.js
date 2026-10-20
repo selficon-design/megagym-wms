@@ -212,14 +212,18 @@ function resizeImage(file, max = 480) {
 
 /* ---------------- υπολογισμοί αποθέματος ---------------- */
 function balQ(p) { return (S.bal[p] && S.bal[p].q) || {}; }
+function whN(p, w) { let n = 0; for (const [k, v] of Object.entries(balQ(p))) if (k.startsWith('W|' + w + '|') && k.endsWith('|N')) n += v; return n; }
 function whAvail(p, wh, sec, st = 'N') { return balQ(p)[K.W(wh, sec, st)] || 0; }
 function prodTotals(p) {
-  const t = { WN: 0, WU: 0, WD: 0, WC: 0, V: 0, G: 0 };
+  const t = { WN: 0, WU: 0, WD: 0, WC: 0, V: 0, VN: 0, VO: 0, G: 0 };
   for (const [k, v] of Object.entries(balQ(p))) {
     const x = k.split('|');
     if (x[0] === 'W') t['W' + x[3]] += v; else t[x[0]] += v;
+    if (x[0] === 'V') { if (String(x[2]).startsWith('OLD')) t.VO += v; else t.VN += v; }
   }
   t.W = t.WN + t.WU + t.WD + t.WC; t.all = t.W + t.V + t.G;
+  t.avail = t.WN + t.VN;               // ΔΙΑΘΕΣΙΜΑ ΠΡΟΣ ΧΡΗΣΗ: κανονικά σε αποθήκες + καινούργια στα οχήματα
+  t.old = t.WU + t.WD + t.WC + t.VO;   // παλιά / μεταχειρισμένα / κατεστραμμένα / προς έλεγχο — όχι προς χρήση
   return t;
 }
 function vehLots(vehId) { // [{p,pk,li,qty,wh,sec,pkNo}]

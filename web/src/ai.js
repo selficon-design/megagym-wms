@@ -140,7 +140,7 @@ function searchProducts(query, cat) {
 function prodBrief(p) {
   const x = S.prod[p]; const t = prodTotals(p);
   return { id: p, code: x.code, name: x.name, item_type: x.kind === 'mat' ? 'υλικό κατασκευής' : 'έτοιμο προϊόν', full_dimensions: x.dims || undefined, remnants_in_stock: x.kind === 'mat' ? remsWhere({ p }).length : undefined, description: (x.desc || '').slice(0, 160), kind: catName(x.cat), category: subName(x.cat, x.sub) || null, type: typeName(x.cat, x.sub, x.ptype) || null, unit: x.unit, active: x.active !== false, has_photo: !!x.photo,
-    totals: { stored_total_warehouses_and_vehicles: t.W + t.V, installed_in_gyms: t.G, warehouses_normal: t.WN, warehouses_used: t.WU, warehouses_damaged: t.WD, warehouses_to_check: t.WC, in_vehicles: t.V, installed: t.G } };
+    totals: { AVAILABLE_FOR_USE: t.avail, available_in_warehouses: t.WN, available_in_vehicles: t.VN, not_for_use_old_items: { used: t.WU, damaged: t.WD, to_check: t.WC, old_in_vehicles: t.VO, total: t.old }, not_for_use_installed_in_gyms: t.G } };
 }
 function locLabel(k) {
   const s = k.split('|');
@@ -199,7 +199,7 @@ const AI_TOOLS = [
     } },
   { name: 'zero_stock', description: 'Προϊόντα με μηδενικό κανονικό διαθέσιμο απόθεμα σε όλες τις αποθήκες (προαιρετικά ανά είδος).',
     inputSchema: { type: 'object', properties: { category_id: { type: 'string' } } },
-    execute: i => Object.keys(S.prod).filter(p => S.prod[p].active !== false && !S.prod[p].deleted && (!i.category_id || S.prod[p].cat === i.category_id) && prodTotals(p).WN <= 0).slice(0, 100).map(p => ({ id: p, code: prodCode(p), name: prodName(p), category: catName(S.prod[p].cat) })) },
+    execute: i => Object.keys(S.prod).filter(p => S.prod[p].active !== false && !S.prod[p].deleted && (!i.category_id || S.prod[p].cat === i.category_id) && prodTotals(p).avail <= 0).slice(0, 100).map(p => ({ id: p, code: prodCode(p), name: prodName(p), category: catName(S.prod[p].cat) })) },
   { name: 'list_pickups', description: 'Λίστες παραλαβής (φόρτωσης στο αμάξι), νεότερες πρώτα. Φίλτρα ημερομηνίας σε μορφή YYYY-MM-DD.',
     inputSchema: { type: 'object', properties: { vehicle_id: { type: 'string' }, warehouse_id: { type: 'string' }, date_from: { type: 'string' }, date_to: { type: 'string' }, only_with_items_in_vehicle: { type: 'boolean' }, limit: { type: 'number' } } },
     execute: i => {
@@ -509,7 +509,7 @@ function aiRules() {
 3. Αλλαγές αποθεμάτων ή σημειώσεις: ΜΟΝΟ με propose_action, που φτιάχνει προσχέδιο· ο χρήστης επιβεβαιώνει με κουμπί. Ποτέ μη λες ότι κάτι εκτελέστηκε πριν το επιβεβαιώσει.
 4. Αν η εντολή είναι ασαφής (ποιο γυμναστήριο, ποια ποσότητα, ποιο αμάξι) ρώτα. Αν ταιριάζουν πολλά προϊόντα, δείξε τα με show_products και ζήτα επιλογή.
 5. ΑΝΤΙΚΑΤΑΣΤΑΣΗ: πριν το προσχέδιο ρώτα τι έγιναν τα παλιά (πετάχτηκαν επιτόπου / μεταχειρισμένα / κατεστραμμένα / προς έλεγχο — σύνολο ίσο με τα καινούργια), πού πάνε όσα επιστρέφουν (αποθήκη προέλευσης, αμάξι ή άλλη αποθήκη) και ποιο ήταν το πρόβλημα. Μη υποθέτεις «πέταμα».
-6. Καταστάσεις αποθέματος: Κανονικό, Μεταχειρισμένο, Κατεστραμμένο, Προς έλεγχο. «Αποθηκευμένα» = αποθήκες (και αποθήκες γυμναστηρίων) + οχήματα· «Εγκατεστημένα» = σε γυμναστήρια. Τα παλιά στο αμάξι φαίνονται χωριστά από τα καινούργια.
+6. Καταστάσεις αποθέματος: Κανονικό, Μεταχειρισμένο, Κατεστραμμένο, Προς έλεγχο. «ΔΙΑΘΕΣΙΜΑ ΠΡΟΣ ΧΡΗΣΗ» = ΜΟΝΟ τα κανονικά (καλή κατάσταση) σε αποθήκες, αποθήκες γυμναστηρίων και τα καινούργια στα οχήματα — αυτό εννοεί ο χρήστης όταν ρωτά «πόσα έχουμε». Τα παλιά (μεταχειρισμένα, κατεστραμμένα, προς έλεγχο, παλιά στο αμάξι) και τα εγκατεστημένα σε γυμναστήρια ΔΕΝ είναι προς χρήση· ανέφερέ τα χωριστά μόνο αν ζητηθούν ή αν βοηθούν.
 7. Μην αθροίζεις διαφορετικές μονάδες μέτρησης. Ανέφερε πάντα μονάδα.
 8. Οι αριθμοί παραστατικών: ΜΓΥ μεταφορά από γυμναστήριο, ΕΠΞ επεξεργασία υλικού, ΜΡΤ μεταφορά ρεταλιών, ΕΙΣ εισαγωγή, ΠΑΡ παραλαβή, ΤΟΠ τοποθέτηση, ΕΠΓ επιστροφή από γυμναστήριο, ΕΠΑ επιστροφή σε αποθήκη, ΜΑΓ σε αποθήκη γυμναστηρίου, ΜΕΤ μεταφορά, ΜΟΧ μεταφορά σε άλλο όχημα, ΚΑΤ αλλαγή κατάστασης, ΑΠΣ απόσυρση, ΑΠΓ απογραφή. Ο χρήστης μπορεί να γράψει «00087» ή «87».
 9. Μπορείς να ανοίξεις οθόνες με open_screen (και screen=replacements για στατιστική με γραφήματα).

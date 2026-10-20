@@ -58,11 +58,12 @@ VIEWS.dash = () => {
       <div class="kpi"><span class="l">Προϊόντα</span><span class="v">${prods.length}</span><span class="u">ενεργοί κωδικοί</span></div>
       <div class="kpi"><span class="l">Αποθήκες</span><span class="v">${activeList(S.wh).length}</span><span class="u">${Object.values(S.wh).reduce((s, w) => s + (w.sections || []).filter(x => x.active !== false).length, 0)} χώροι</span></div>
       <div class="kpi"><span class="l">Οχήματα</span><span class="v">${activeList(S.veh).length}</span><span class="u">${activeList(S.gym).length} γυμναστήρια</span></div>
-      <div class="kpi"><span class="l">Αποθηκευμένα</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('W'))}</span><span class="u">όλες οι καταστάσεις</span></div>
-      <div class="kpi"><span class="l">Στα οχήματα</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('V'))}</span></div>
+      <div class="kpi s"><span class="l">Διαθέσιμα προς χρήση</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('avail'))}</span><span class="u">αποθήκες + οχήματα · καλή κατάσταση</span></div>
+      <div class="kpi"><span class="l">Διαθέσιμα στα οχήματα</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('VN'))}</span></div>
       <div class="kpi c click" data-act="replOpen" data-g="" title="Άνοιγμα στατιστικής αντικαταστάσεων"><span class="l">Αντικαταστάσεις μήνα ›</span><span class="v" style="font-size:1.1rem">${(() => { const d = new Date(); return sumByUnit(replacementRows({ from: new Date(d.getFullYear(), d.getMonth(), 1).getTime() }).map(r => ({ p: r.p, q: r.qty }))); })()}</span></div>
-      <div class="kpi"><span class="l">Σε αποθήκες γυμναστηρίων</span><span class="v" style="font-size:1.1rem">${sumByUnit(Object.keys(S.bal).flatMap(p => Object.keys(S.gym).flatMap(g => gymWarehouses(g)).map(w => ({ p, q: whQty(p, w) }))))}</span></div>
-      <div class="kpi"><span class="l">Εγκατεστημένα</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('G'))}</span></div>
+      <div class="kpi"><span class="l">Διαθέσιμα σε αποθήκες γυμν.</span><span class="v" style="font-size:1.1rem">${sumByUnit(Object.keys(S.bal).flatMap(p => Object.keys(S.gym).flatMap(g => gymWarehouses(g)).map(w => ({ p, q: whN(p, w) }))))}</span></div>
+      <div class="kpi x"><span class="l">Εγκατεστημένα</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('G'))}</span><span class="u">όχι προς χρήση</span></div>
+      <div class="kpi x"><span class="l">Παλιά στα οχήματα</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('VO'))}</span><span class="u">από αντικαταστάσεις</span></div>
       <div class="kpi u"><span class="l">Μεταχειρισμένα</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('WU'))}</span></div>
       <div class="kpi d"><span class="l">Κατεστραμμένα</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('WD'))}</span></div>
       <div class="kpi c"><span class="l">Προς έλεγχο</span><span class="v" style="font-size:1.1rem">${sumByUnit(ent('WC'))}</span></div>
@@ -250,7 +251,7 @@ VIEWS.prods = () => {
   if (f.gym && !S.gym[f.gym]) f.gym = '';
   let ids = Object.keys(S.prod).filter(p => prodMatches(p, f));
   if (f.kindF) ids = ids.filter(p => f.kindF === 'mat' ? isMat(p) : !isMat(p));
-  if (f.zero) ids = ids.filter(p => prodTotals(p).WN <= 0);
+  if (f.zero) ids = ids.filter(p => prodTotals(p).avail <= 0);
   if (f.mode === 'gym' && f.inGym) ids = ids.filter(p => (f.gym ? [f.gym] : gyms.map(g => g[0])).some(g => { const i = gymProd(g, p); return i.inst || i.stored; }));
   sortProds(ids);
   // αποθήκες: πρώτα οι κανονικές, μετά οι αποθήκες γυμναστηρίων
@@ -263,14 +264,13 @@ VIEWS.prods = () => {
     const pi = $('#pingym'); if (pi) pi.onchange = e => { f.inGym = e.target.checked; render(true); };
   });
   const canQty = can('move');
-  const stored = t => t.W + t.V; // αποθηκευμένα = αποθήκες (και γυμναστηρίων) + οχήματα
   const nz = n => n ? `<b>${fmtN(n)}</b>` : '<span class="muted">—</span>';
   const thName = '<th rowspan="2"></th><th rowspan="2">Κωδικός</th><th rowspan="2">Προϊόν</th>';
   let head;
   if (f.mode === 'wh') {
     const nS = whsN.length + (whsG.length ? 1 : 0) + 1;
-    head = `<tr>${thName}<th rowspan="2" class="r grp gs">Αποθηκευ&shy;μένα</th><th rowspan="2" class="r grp gi">Εγκατε&shy;στημένα</th><th rowspan="2" class="r">Σύνολο</th><th colspan="${nS}" class="grp">Πού είναι τα αποθηκευμένα</th>${canQty ? '<th rowspan="2"></th>' : ''}</tr>
-      <tr>${whsN.map(([, w]) => `<th class="r">${esc(w.name)}</th>`).join('')}${whsG.length ? `<th class="r">Αποθήκες γυμν.<br><span class="thsub">${whsG.length} · ανάλυση «Ανά γυμναστήριο»</span></th>` : ''}<th class="r">Οχήματα</th></tr>`;
+    head = `<tr>${thName}<th rowspan="2" class="r grp gs">Διαθέσιμα<br>προς χρήση</th><th colspan="${nS}" class="grp gs">Πού είναι τα διαθέσιμα</th><th colspan="2" class="grp gx">Όχι προς χρήση</th>${canQty ? '<th rowspan="2"></th>' : ''}</tr>
+      <tr>${whsN.map(([, w]) => `<th class="r">${esc(w.name)}</th>`).join('')}${whsG.length ? `<th class="r">Αποθήκες γυμν.<br><span class="thsub">${whsG.length} · ανάλυση «Ανά γυμναστήριο»</span></th>` : ''}<th class="r">Οχήματα</th><th class="r gx">Παλιά<br><span class="thsub">μεταχ. · κατεστρ. · έλεγχος</span></th><th class="r gx">Εγκατε&shy;στημένα</th></tr>`;
   } else if (f.mode === 'gym') {
     head = f.gym ? `<tr>${thName.replace(/ rowspan="2"/g, '')}<th class="r gi">Εγκατεστημένα</th><th class="r gs">Αποθηκευμένα<br><span class="thsub">στην αποθήκη του</span></th><th class="r">Σύνολο</th></tr>`
       : `<tr>${thName}<th colspan="2" class="grp">Σύνολο γυμναστηρίων</th>${gyms.map(([g, x]) => `<th colspan="2" class="grp"><a data-go="gym" data-a="${g}">${esc(x.name)}</a></th>`).join('')}</tr>
@@ -279,8 +279,8 @@ VIEWS.prods = () => {
       <tr><th class="r">Κανονικά</th><th class="r">Μεταχειρ.</th><th class="r">Κατεστρ.</th><th class="r">Προς έλεγχο</th><th class="r">Οχήματα</th></tr>`;
   const row = p => { const x = S.prod[p]; const t = prodTotals(p);
     const name = `<td style="width:56px">${thumb(p)}</td><td class="mono small" style="white-space:nowrap">${esc(x.code)}</td><td style="min-width:180px"><b>${esc(x.name)}</b>${x.active === false ? ' <span class="tag g">Ανενεργό</span>' : ''}${x.kind === 'mat' ? ` <span class="tag k">Υλικό</span>${remsWhere({ p }).length ? ` <span class="small muted">+${remsWhere({ p }).length} ρετάλια</span>` : ''}` : ''}<div class="small muted">${esc(catLabel(p))} · ${esc(x.unit)}${x.dims ? ' · ' + esc(x.dims) : ''}</div></td>`;
-    if (f.mode === 'wh') return `<tr class="click" data-go="prod" data-a="${p}">${name}<td class="r cs"><b>${fmtN(stored(t))}</b></td><td class="r ci"><b>${fmtN(t.G)}</b></td><td class="r"><b>${fmtN(t.all)}</b></td>${whsN.map(([w]) => `<td class="r">${nz(whQty(p, w))}</td>`).join('')}${whsG.length ? `<td class="r">${nz(whsG.reduce((s, [w]) => s + whQty(p, w), 0))}</td>` : ''}
-      <td class="r">${nz(t.V)}</td>${canQty ? `<td><button class="btn sm" data-act="distrib" data-p="${p}">+ Ποσότητες</button></td>` : ''}</tr>`;
+    if (f.mode === 'wh') return `<tr class="click" data-go="prod" data-a="${p}">${name}<td class="r cs"><b>${fmtN(t.avail)}</b></td>${whsN.map(([w]) => `<td class="r">${nz(whN(p, w))}</td>`).join('')}${whsG.length ? `<td class="r">${nz(whsG.reduce((s, [w]) => s + whN(p, w), 0))}</td>` : ''}
+      <td class="r">${nz(t.VN)}</td><td class="r cx">${t.old ? `<span class="muted">${fmtN(t.old)}</span>` : '<span class="muted">—</span>'}</td><td class="r cx">${t.G ? `<span class="muted">${fmtN(t.G)}</span>` : '<span class="muted">—</span>'}</td>${canQty ? `<td><button class="btn sm" data-act="distrib" data-p="${p}">+ Ποσότητες</button></td>` : ''}</tr>`;
     if (f.mode === 'gym') {
       if (f.gym) { const i = gymProd(f.gym, p); return `<tr class="click" data-go="prod" data-a="${p}">${name}<td class="r ci">${nz(i.inst)}</td><td class="r cs">${nz(i.stored)}</td><td class="r"><b>${fmtN(i.inst + i.stored)}</b></td></tr>`; }
       let ti = 0, ts = 0; const cells = gyms.map(([g]) => { const i = gymProd(g, p); ti += i.inst; ts += i.stored; return `<td class="r ci">${nz(i.inst)}</td><td class="r cs">${nz(i.stored)}</td>`; }).join('');
@@ -291,14 +291,14 @@ VIEWS.prods = () => {
       <label class="check"><input type="checkbox" id="pingym" ${f.inGym ? 'checked' : ''}> Μόνο όσα υπάρχουν ${f.gym ? 'στο γυμναστήριο' : 'σε γυμναστήρια'}</label>
       ${f.gym ? `<button class="btn sm" data-go="gym" data-a="${f.gym}">Σελίδα γυμναστηρίου</button>` : ''}</div>` : '';
   const legend = f.mode === 'gym' ? 'Αποθηκευμένα = στην αποθήκη του γυμναστηρίου, όχι εγκατεστημένα. Εγκατεστημένα = τοποθετημένα και σε λειτουργία.'
-    : 'Αποθηκευμένα = σε αποθήκες (και αποθήκες γυμναστηρίων) και σε οχήματα. Εγκατεστημένα = τοποθετημένα σε γυμναστήρια.';
+    : 'Διαθέσιμα προς χρήση = κανονικά (καλή κατάσταση) σε αποθήκες, αποθήκες γυμναστηρίων και οχήματα. Όχι προς χρήση = παλιά (μεταχειρισμένα, κατεστραμμένα, προς έλεγχο) και εγκατεστημένα σε γυμναστήρια, μόνο για ενημέρωση.';
   return `<div class="wrap">${pageHead(`${ids.length} κωδικοί · κοινός για όλες τις αποθήκες και τα γυμναστήρια`, 'Γενικός πίνακας προϊόντων', can('product_create') ? `<button class="btn pri" data-act="newProdNav">+ Νέο προϊόν</button>` : '')}
     <p class="hint">Κάθε προϊόν καταχωρίζεται μία φορά εδώ, με περιγραφή και φωτογραφία. Οι ποσότητες σε κάθε αποθήκη ορίζονται από το κουμπί «+ Ποσότητες» ή από την Εισαγωγή, χωρίς να ξαναπεράσετε στοιχεία του προϊόντος.</p>
     <div class="panel" style="display:flex;flex-direction:column;gap:12px"><div class="chips" role="group" aria-label="Κατηγορία καταχώρισης">${[['', 'Όλα'], ['prod', 'Έτοιμα προϊόντα'], ['mat', 'Υλικά κατασκευών']].map(([k, l]) => `<button class="chip ${(f.kindF || '') === k ? 'on' : ''}" data-act="pkind" data-v="${k}">${l}</button>`).join('')}</div>${catChips(f).replace(/data-act="fcat"/g, 'data-act="lcat"').replace(/data-act="fsub"/g, 'data-act="lsub"')}
       <input type="search" id="pq" value="${esc(f.q)}" placeholder="Αναζήτηση με κωδικό, όνομα, περιγραφή" aria-label="Αναζήτηση">
-      <div class="row"><div class="chips"><button class="chip ${f.mode === 'wh' ? 'on' : ''}" data-act="pmode" data-m="wh">Αποθηκευμένα / εγκατεστημένα</button><button class="chip ${f.mode === 'gym' ? 'on' : ''}" data-act="pmode" data-m="gym">Ανά γυμναστήριο</button><button class="chip ${f.mode === 'st' ? 'on' : ''}" data-act="pmode" data-m="st">Ανά κατάσταση</button></div>
-        <label class="check"><input type="checkbox" id="pzero" ${f.zero ? 'checked' : ''}> Μόνο με μηδενικό διαθέσιμο απόθεμα</label><label class="check"><input type="checkbox" id="pina" ${f.inactive ? 'checked' : ''}> Εμφάνιση ανενεργών</label></div>
-      ${gymBar}<div class="small muted"><span class="lgd gs"></span> ${legend.split('. ')[0]}. <span class="lgd gi"></span> ${legend.split('. ')[1]}</div></div>
+      <div class="row"><div class="chips"><button class="chip ${f.mode === 'wh' ? 'on' : ''}" data-act="pmode" data-m="wh">Διαθέσιμα προς χρήση</button><button class="chip ${f.mode === 'gym' ? 'on' : ''}" data-act="pmode" data-m="gym">Ανά γυμναστήριο</button><button class="chip ${f.mode === 'st' ? 'on' : ''}" data-act="pmode" data-m="st">Ανά κατάσταση</button></div>
+        <label class="check"><input type="checkbox" id="pzero" ${f.zero ? 'checked' : ''}> Μόνο όσα δεν έχουν διαθέσιμα</label><label class="check"><input type="checkbox" id="pina" ${f.inactive ? 'checked' : ''}> Εμφάνιση ανενεργών</label></div>
+      ${gymBar}<div class="small muted"><span class="lgd ${f.mode === 'wh' ? 'gs' : 'gs'}"></span> ${legend.split('. ')[0]}. <span class="lgd ${f.mode === 'wh' ? 'gx' : 'gi'}"></span> ${legend.split('. ')[1]}</div></div>
     <div class="tw"><table class="ptab"><thead>${head}</thead><tbody>
     ${ids.slice(0, 400).map(row).join('') || `<tr><td colspan="30" class="empty">${f.mode === 'gym' && f.inGym ? 'Κανένα προϊόν σε ' + (f.gym ? 'αυτό το γυμναστήριο' : 'γυμναστήρια') + '.' : 'Δεν βρέθηκαν προϊόντα.'}</td></tr>`}
     </tbody></table></div></div>`;
@@ -358,10 +358,10 @@ VIEWS.prod = id => {
       <div style="display:flex;flex-direction:column;gap:12px;min-width:0"><p style="margin:0;white-space:pre-wrap;max-width:65ch">${esc(x.desc || 'Χωρίς περιγραφή.')}</p>${can('product') || (can('product_create') && x.by === S.me.id) ? '<div class="hint">Για νέα φωτογραφία: αντιγράψτε μια εικόνα και πατήστε Ctrl+V σε αυτή τη σελίδα.</div>' : ''}
       ${x.kind === 'mat' ? `<div class="small"><span class="tag k">Υλικό κατασκευής</span>${x.dims ? ' Ολόκληρο: <b>' + esc(x.dims) + '</b>' : ''}</div>` : ''}
       <div class="muted small">Μονάδα: ${esc(x.unit)}${x.active === false ? ' · <span class="tag g">Ανενεργό</span>' : ''}</div>
-      <div class="kpis"><div class="kpi"><span class="l">Κανονικά</span><span class="v">${fmtN(t.WN)}</span><span class="u">διαθέσιμα σε αποθήκες</span></div>
+      <div class="kpis"><div class="kpi s"><span class="l">Διαθέσιμα προς χρήση</span><span class="v">${fmtN(t.avail)}</span><span class="u">αποθήκες ${fmtN(t.WN)} · οχήματα ${fmtN(t.VN)}</span></div>
         <div class="kpi u"><span class="l">Μεταχειρισμένα</span><span class="v">${fmtN(t.WU)}</span></div><div class="kpi d"><span class="l">Κατεστραμμένα</span><span class="v">${fmtN(t.WD)}</span></div><div class="kpi c"><span class="l">Προς έλεγχο</span><span class="v">${fmtN(t.WC)}</span></div>
-        <div class="kpi"><span class="l">Στα οχήματα</span><span class="v">${fmtN(t.V)}</span></div><div class="kpi"><span class="l">Εγκατεστημένα</span><span class="v">${fmtN(t.G)}</span></div></div>
-      <div class="small"><span class="lgd gs"></span> <b>Αποθηκευμένα: ${qtyU(t.W + t.V, id)}</b> <span class="muted">(αποθήκες ${fmtN(t.W)} · οχήματα ${fmtN(t.V)})</span> &nbsp; <span class="lgd gi"></span> <b>Εγκατεστημένα: ${qtyU(t.G, id)}</b> &nbsp; <span class="muted">Σύνολο παντού: ${qtyU(t.all, id)}</span></div></div></div>
+        ${t.VO ? `<div class="kpi x"><span class="l">Παλιά στα οχήματα</span><span class="v">${fmtN(t.VO)}</span></div>` : ''}<div class="kpi x"><span class="l">Εγκατεστημένα</span><span class="v">${fmtN(t.G)}</span><span class="u">όχι προς χρήση</span></div></div>
+      <div class="small"><span class="lgd gs"></span> <b>Διαθέσιμα προς χρήση: ${qtyU(t.avail, id)}</b> &nbsp; <span class="lgd gx"></span> <span class="muted">Όχι προς χρήση: παλιά ${fmtN(t.old)} · εγκατεστημένα ${fmtN(t.G)}</span></div></div></div>
     <div class="grid2">
       <div class="panel"><div class="row" style="margin-bottom:12px"><h2 style="flex:1">Ανά αποθήκη</h2>${can('move') ? `<button class="btn sm pri" data-act="distrib" data-p="${id}">+ Ποσότητες</button>` : ''}</div><div class="tw"><table><thead><tr><th>Αποθήκη</th><th class="r">Καν.</th><th class="r">Μεταχ.</th><th class="r">Κατ.</th><th class="r">Έλεγχ.</th></tr></thead><tbody>
         ${activeList(S.wh).filter(([w, x]) => !x.gym || Object.values(whRows).some(y => y.wh === w)).map(([w, x]) => { const rs = Object.values(whRows).filter(y => y.wh === w); if (!rs.length) return `<tr><td>${esc(x.name)}</td><td class="r muted">0</td><td class="r muted">0</td><td class="r muted">0</td><td class="r muted">0</td></tr>`;
