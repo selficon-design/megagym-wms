@@ -116,3 +116,18 @@ jobs:
           c=$(curl -sL "${u}config.js"); echo "$c" | grep -q "$REF.supabase.co" && echo "config.js: σωστό" || { echo "::error title=config.js::δεν περιέχει τη διεύθυνση του Supabase"; fail=1; }
           [ $fail = 0 ] && echo "::notice title=ΟΛΑ ΟΚ::Server, σύνδεση και εφαρμογή λειτουργούν"
           exit $fail
+      - name: ElevenLabs (φωνή & μικρόφωνο)
+        env:
+          EK: ${{ secrets.ELEVENLABS_API_KEY }}
+          EV: ${{ secrets.ELEVENLABS_VOICE_ID }}
+        run: |
+          EK=$(printf '%s' "$EK" | tr -d '[:space:]'); EV=$(printf '%s' "$EV" | tr -d '[:space:]'); echo "::add-mask::$EK"
+          [ -z "$EK" ] && { echo "::warning title=ElevenLabs::Δεν υπάρχει ELEVENLABS_API_KEY"; exit 0; }
+          echo "Μήκος κλειδιού: ${#EK}, αρχή: ${EK:0:3}…"
+          # ομιλία (λίγοι χαρακτήρες)
+          c=$(curl -s -o /tmp/t -w '%{http_code}' -X POST "https://api.elevenlabs.io/v1/text-to-speech/$EV?output_format=mp3_22050_32" -H "xi-api-key: $EK" -H 'Content-Type: application/json' -d '{"text":"Γεια.","model_id":"eleven_multilingual_v2"}')
+          if [ "$c" = 200 ]; then echo "::notice title=Φωνή (TTS)::ΟΚ"; else echo "::error title=Φωνή (TTS) $c::$(head -c 300 /tmp/t)"; fi
+          # μικρόφωνο: 1 δευτερόλεπτο σιωπής
+          python3 -c "import wave;w=wave.open('/tmp/s.wav','wb');w.setnchannels(1);w.setsampwidth(2);w.setframerate(16000);w.writeframes(b'\0\0'*16000);w.close()"
+          c=$(curl -s -o /tmp/s -w '%{http_code}' -X POST https://api.elevenlabs.io/v1/speech-to-text -H "xi-api-key: $EK" -F model_id=scribe_v2 -F file=@/tmp/s.wav)
+          if [ "$c" = 200 ]; then echo "::notice title=Μικρόφωνο (STT)::ΟΚ"; else echo "::error title=Μικρόφωνο (STT) $c::$(head -c 300 /tmp/s)"; fi

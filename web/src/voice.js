@@ -37,6 +37,7 @@ ttsSpeak = async function (text) {
   } catch (e) {
     if (my !== VOICE.seq) return;
     if (e && e.status === 503) VOICE.elOk = false; // δεν έχει ρυθμιστεί → φωνή συσκευής
+    else if (e && e.status && !VOICE.warned) { VOICE.warned = true; toast(e.message + ' — χρησιμοποιείται η φωνή της συσκευής.', true); }
     if (e && e.name === 'NotAllowedError') return toast('Πατήστε «Ακρόαση» για να ακούσετε την απάντηση.', true);
     deviceSpeak(text);
   }
