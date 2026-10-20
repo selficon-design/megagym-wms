@@ -59,6 +59,9 @@ jobs:
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           AI_MODEL: ${{ vars.AI_MODEL }}
         run: |
+          clean() { printf '%s' "$1" | tr -d '[:space:]'; }
+          ANTHROPIC_API_KEY=$(clean "$ANTHROPIC_API_KEY"); ELEVENLABS_API_KEY=$(clean "$ELEVENLABS_API_KEY"); ELEVENLABS_VOICE_ID=$(clean "$ELEVENLABS_VOICE_ID"); AI_MODEL=$(clean "$AI_MODEL")
+          for t in "$ANTHROPIC_API_KEY" "$ELEVENLABS_API_KEY" "$ELEVENLABS_VOICE_ID"; do [ -n "$t" ] && echo "::add-mask::$t"; done
           args=()
           [ -n "$ANTHROPIC_API_KEY" ] && args+=("ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
           [ -n "$ELEVENLABS_API_KEY" ] && args+=("ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY")
@@ -82,12 +85,34 @@ jobs:
           node-version: 22
       - name: Κατασκευή
         env:
-          SUPABASE_URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        run: node web/build.mjs
+        run: SUPABASE_URL="https://$(printf '%s' "$REF" | tr -d '[:space:]').supabase.co" node web/build.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  check:
+    name: Έλεγχος λειτουργίας
+    needs: web
+    runs-on: ubuntu-latest
+    env:
+      REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      ANON: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - name: Server, σύνδεση χρηστών, εφαρμογή
+        run: |
+          REF=$(printf '%s' "$REF" | tr -d '[:space:]'); ANON=$(printf '%s' "$ANON" | tr -d '[:space:]'); echo "::add-mask::$ANON"
+          B="https://$REF.supabase.co"; fail=0
+          c=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $ANON" "$B/auth/v1/settings"); echo "Auth: $c"; [ "$c" = 200 ] || { echo "::error title=Σύνδεση χρηστών::Auth απάντησε $c (λάθος SUPABASE_ANON_KEY;)"; fail=1; }
+          s=$(curl -s -H "apikey: $ANON" "$B/auth/v1/settings"); echo "$s" | grep -q '"disable_signup":true' && echo "Δημόσιες εγγραφές: κλειστές" || echo "::warning title=Εγγραφές::Οι δημόσιες εγγραφές φαίνονται ανοιχτές"
+          c=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $ANON" "$B/rest/v1/docs?select=path&limit=1"); echo "Βάση (χωρίς σύνδεση): $c"
+          for f in execute admin ai tts stt; do c=$(curl -s -o /tmp/r -w '%{http_code}' -X POST -H "apikey: $ANON" -H 'Content-Type: application/json' -d '{}' "$B/functions/v1/$f"); echo "Function $f: $c $(head -c 80 /tmp/r)"; [ "$c" = 401 ] || { echo "::error title=Function $f::απάντησε $c αντί για 401"; fail=1; }; done
+          u="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"; sleep 20
+          c=$(curl -sL -o /tmp/i -w '%{http_code}' "$u"); echo "Εφαρμογή $u: $c"; [ "$c" = 200 ] || { echo "::error title=Εφαρμογή::$u απάντησε $c"; fail=1; }
+          c=$(curl -sL "${u}config.js"); echo "$c" | grep -q "$REF.supabase.co" && echo "config.js: σωστό" || { echo "::error title=config.js::δεν περιέχει τη διεύθυνση του Supabase"; fail=1; }
+          [ $fail = 0 ] && echo "::notice title=ΟΛΑ ΟΚ::Server, σύνδεση και εφαρμογή λειτουργούν"
+          exit $fail

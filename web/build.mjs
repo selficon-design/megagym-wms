@@ -52,7 +52,7 @@ ${js}
 const dist = join(root, 'dist'); mkdirSync(dist, { recursive: true });
 writeFileSync(join(dist, 'index.html'), html);
 cpSync(join(root, 'web/public'), dist, { recursive: true });
-const url = process.env.SUPABASE_URL || '', key = process.env.SUPABASE_ANON_KEY || '';
+const url = (process.env.SUPABASE_URL || '').replace(/\s+/g, ''), key = (process.env.SUPABASE_ANON_KEY || '').replace(/\s+/g, '');
 if (url && key) writeFileSync(join(dist, 'config.js'), `window.MG_CONFIG = ${JSON.stringify({ url, anonKey: key })};\n`);
 else if (!existsSync(join(dist, 'config.js'))) writeFileSync(join(dist, 'config.js'), 'window.MG_CONFIG = window.MG_CONFIG || null;\n');
 writeFileSync(join(dist, '.nojekyll'), '');
