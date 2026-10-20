@@ -1,0 +1,13 @@
+{
+  "name": "mega-gym-app",
+  "private": true,
+  "type": "module",
+  "description": "MEGA GYM — Warehouse Management & AI",
+  "scripts": {
+    "build": "node web/build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "postgres": "3.4.4"
+  }
+}

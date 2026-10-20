@@ -1,0 +1,81 @@
+# Αυτόματη ενημέρωση σε κάθε αλλαγή στο main:
+#  1) βάση δεδομένων + functions στο Supabase
+#  2) η εφαρμογή στο GitHub Pages
+# Τα κλειδιά διαβάζονται ΜΟΝΟ από τα GitHub Secrets (Settings → Secrets and variables → Actions).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  supabase:
+    name: Supabase (βάση & functions)
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Κοινός κώδικας για τις functions
+        run: node web/build.mjs
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Σύνδεση με το project
+        run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - name: Ενημέρωση βάσης (migrations)
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+      - name: Κλειδιά AI & φωνής (μόνο στον server)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+        run: |
+          args=()
+          [ -n "$ANTHROPIC_API_KEY" ] && args+=("ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
+          [ -n "$ELEVENLABS_API_KEY" ] && args+=("ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY")
+          [ -n "$ELEVENLABS_VOICE_ID" ] && args+=("ELEVENLABS_VOICE_ID=$ELEVENLABS_VOICE_ID")
+          [ -n "$AI_MODEL" ] && args+=("AI_MODEL=$AI_MODEL")
+          if [ ${#args[@]} -gt 0 ]; then supabase secrets set --project-ref "$PROJECT_REF" "${args[@]}"; fi
+      - name: Functions
+        run: supabase functions deploy --project-ref "$PROJECT_REF"
+
+  web:
+    name: Εφαρμογή (GitHub Pages)
+    needs: supabase
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Κατασκευή
+        env:
+          SUPABASE_URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node web/build.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

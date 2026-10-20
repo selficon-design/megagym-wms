@@ -1,0 +1,35 @@
+# Έλεγχοι σε κάθε pull request: ο μηχανισμός αποθέματος και οι κανόνες ασφαλείας σε πραγματικό PostgreSQL.
+name: Tests
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mg
+        ports: ["5433:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node web/build.mjs
+      - name: Βάση ελέγχου
+        run: |
+          P="psql -h localhost -p 5433 -U postgres -d mg -v ON_ERROR_STOP=1"
+          $P -f tests/supabase_stub.sql
+          $P -f supabase/migrations/20261020000100_schema.sql
+          $P -f tests/rls_test.sql
+          $P -f tests/fixtures.sql
+      - name: Κινήσεις αποθέματος
+        env:
+          PGHOST: localhost
+        run: node --test tests/*.test.mjs

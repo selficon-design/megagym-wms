@@ -1,0 +1,14 @@
+# Ρυθμίσεις Supabase CLI για το project MEGA GYM
+# Ο έλεγχος σύνδεσης γίνεται μέσα σε κάθε function (getUser), ώστε να δουλεύει και με τα νέα κλειδιά του Supabase.
+project_id = "mega-gym"
+
+[functions.execute]
+verify_jwt = false
+[functions.admin]
+verify_jwt = false
+[functions.ai]
+verify_jwt = false
+[functions.tts]
+verify_jwt = false
+[functions.stt]
+verify_jwt = false
