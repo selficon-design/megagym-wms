@@ -32,7 +32,7 @@ ${opErr}
 `);
 
 // 3) Η εφαρμογή: ένα index.html (όπως η δοκιμαστική) + PWA αρχεία
-const order = ['sb.js', 'engine.js', 'core.js', 'ui.js', 'v_forms.js', 'v_lists.js', 'v_more.js', 'v_mats.js', 'v_repl.js', 'manual.js', 'ai.js', 'voice.js', 'auth.js'];
+const order = ['theme.js', 'sb.js', 'engine.js', 'core.js', 'ui.js', 'v_forms.js', 'v_lists.js', 'v_more.js', 'v_mats.js', 'v_repl.js', 'manual.js', 'ai.js', 'voice.js', 'start.js', 'auth.js'];
 const body = readFileSync(join(root, 'web/src/body.html'), 'utf8');
 const js = order.map(src).join('\n');
 const html = `<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">

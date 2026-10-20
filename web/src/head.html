@@ -89,7 +89,8 @@ main{min-width:0;padding-block:28px 140px;padding-left:max(16px,env(safe-area-in
   .shell{grid-template-columns:minmax(0,1fr)}
   .burger{display:block}
   .nav{position:fixed;z-index:70;top:0;bottom:0;left:0;width:min(290px,86vw);height:auto;transform:translateX(-105%);transition:transform .2s;
-    padding-top:calc(16px + env(safe-area-inset-top,0px));padding-left:max(10px,env(safe-area-inset-left,0px));box-shadow:var(--shadow)}
+    padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));padding-left:max(10px,env(safe-area-inset-left,0px));box-shadow:var(--shadow);
+    overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;max-height:100dvh}
   .nav.open{transform:none}
   .scrim.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:65}
   .who .nm{display:none}
