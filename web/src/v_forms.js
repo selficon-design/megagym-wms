@@ -34,6 +34,7 @@ function catChips(f, opt = {}) {
       <div class="catpath" aria-label="Σειρά επιλογής"><span class="cp1">Είδος</span><span class="cpsep">–</span><span class="cp2">Κατηγορία</span><span class="cpsep">–</span><span class="cp3">Τύπος</span></div></div>`;
     cats = cats.filter(([k]) => (f.kindF === 'mat') === catIsMat(k));
   } else if (opt.family === 'prod') { f.kindF = 'prod'; cats = cats.filter(([k]) => !catIsMat(k)); }
+  else if (opt.family === 'any') f.kindF = ''; // λίστες εγκατεστημένων: δείχνουν ό,τι υπάρχει, ώστε τίποτα να μη «κρύβεται»
   if (f.cat && !cats.some(([k]) => k === f.cat)) { f.cat = ''; f.sub = ''; f.ptype = ''; }
   h += row(1, 'Είδος', `<button class="chip ${!f.cat ? 'on' : ''}" data-act="fcat" data-c="">Όλα τα είδη</button>` +
     cats.map(([k, c]) => `<button class="chip ${f.cat === k ? 'on' : ''}" data-act="fcat" data-c="${k}">${esc(c.name)}</button>`).join(''));
@@ -613,7 +614,7 @@ VIEWS.retireg = a => {
     <div class="panel"><div class="fields">${gymSelect('rggym', f.gym)}
       <div class="f"><label for="rgreason">Αιτιολογία</label><input type="text" id="rgreason" value="${esc(f.reason)}" placeholder="π.χ. Καμμένα, σπασμένα"></div></div>
       <p class="hint" style="margin-top:10px">Αφορά όσα είναι εγκατεστημένα στο γυμναστήριο. Τα αποθηκευμένα σε αποθήκη του γυμναστηρίου${gw.length ? ` (${gw.map(whName).map(esc).join(', ')})` : ''} αποσύρονται από την καρτέλα «Απόσυρση από αποθήκη».</p></div>
-    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f, { family: 'prod' })}
+    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f, { family: 'any' })}
       <input type="search" id="fq" placeholder="Αναζήτηση με κωδικό, όνομα ή περιγραφή" value="${esc(f.q)}" aria-label="Αναζήτηση προϊόντων"></div>
     <div class="plist" id="glist"></div>
     <div class="cartbar" id="cartbar"></div></div>`;
@@ -777,7 +778,7 @@ VIEWS.gymout = a => {
       <span class="lbl" style="display:block;margin-top:12px">Κατάσταση προϊόντων</span>
       <div class="chips" style="margin-top:6px"><button class="chip ${f.cond === 'N' ? 'on' : ''}" data-act="gmCond" data-v="N">Καλή κατάσταση</button><button class="chip ${f.cond === 'U' ? 'on' : ''}" data-act="gmCond" data-v="U">Μεταχειρισμένο</button></div>
       <p class="hint" style="margin-top:10px">${f.dest === 'W' ? 'Στην αποθήκη μπαίνουν ως «' + (f.cond === 'U' ? 'Μεταχειρισμένα' : 'Κανονικά') + '».' : 'Στο άλλο γυμναστήριο καταχωρίζονται ως εγκατεστημένα, με νέα λίστα τοποθέτησης (σκοπός «Μεταφορά από άλλο γυμναστήριο»).'} Χαλασμένα αποσύρονται από «Καταστάσεις & απόσυρση → Απόσυρση από γυμναστήριο».</p></div>
-    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f, { family: 'prod' })}
+    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f, { family: 'any' })}
       <input type="search" id="fq" placeholder="Αναζήτηση με κωδικό, όνομα ή περιγραφή" value="${esc(f.q)}" aria-label="Αναζήτηση προϊόντων"></div>
     <div class="plist" id="glist"></div>
     <div class="cartbar" id="cartbar"></div></div>`;

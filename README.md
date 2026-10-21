@@ -105,6 +105,7 @@ node web/build.mjs                 # κατασκευή
 npm test                           # κινήσεις αποθέματος σε PostgreSQL (PGHOST/PGPORT/PGDATABASE)
 node tests/ui/server.mjs &         # τοπικός «Supabase» πάνω σε PostgreSQL
 python3 tests/ui/ui_test.py        # η εφαρμογή σε browser: σύνδεση, κινήσεις, RLS, AI, φωνή, χρήστες
+python3 tests/ui/trap_audit.py     # κανένα προϊόν/υλικό «εγκλωβισμένο»: κάθε θέση έχει οθόνη που το μετακινεί
 ```
 
 Σε κάθε pull request το GitHub τρέχει αυτόματα τους ελέγχους της βάσης (`.github/workflows/test.yml`).
