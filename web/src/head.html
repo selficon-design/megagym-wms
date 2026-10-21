@@ -96,7 +96,9 @@ main{min-width:0;padding-block:28px 140px;padding-left:max(16px,env(safe-area-in
   .who .nm{display:none}
   main{padding-block:22px 140px}
 }
-@media (max-width:420px){.brand .tx>span{display:none}}
+.top-in .brand{min-width:0;overflow:hidden}.top-in .brand .tx{min-width:0;overflow:hidden}.top-in .brand .tx b,.top-in .brand .tx>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+@media (max-width:520px){.top-in .brand .tx>span{display:none}}
+@media (max-width:400px){.top-in{gap:6px}.top-in .who .rl{font-size:.62rem}.top-in .brand .mk{padding:4px 6px}.top-in .brand .tx b{font-size:.92rem;letter-spacing:.02em}.top-in .brand{gap:6px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 /* page head */
