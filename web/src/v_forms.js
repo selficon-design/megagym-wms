@@ -22,15 +22,17 @@ function initWhForm(kind, a) {
 }
 
 function catChips(f) {
+  // κάθε επίπεδο σε δική του σειρά, με τίτλο και δικό του χρώμα (ίδιο με τις ετικέτες των προϊόντων)
+  const row = (lv, label, inner) => `<div class="chiprow lv${lv}"><span class="chiplbl">${label}</span><div class="chips" role="group" aria-label="${label}">${inner}</div></div>`;
   const cats = activeList(S.cat);
-  let h = `<div class="chips" role="group" aria-label="Είδη"><button class="chip ${!f.cat ? 'on' : ''}" data-act="fcat" data-c="">Όλα τα είδη</button>` +
-    cats.map(([k, c]) => `<button class="chip ${f.cat === k ? 'on' : ''}" data-act="fcat" data-c="${k}">${esc(c.name)}</button>`).join('') + '</div>';
+  let h = row(1, 'Είδος', `<button class="chip ${!f.cat ? 'on' : ''}" data-act="fcat" data-c="">Όλα τα είδη</button>` +
+    cats.map(([k, c]) => `<button class="chip ${f.cat === k ? 'on' : ''}" data-act="fcat" data-c="${k}">${esc(c.name)}</button>`).join(''));
   const subs = f.cat ? ((S.cat[f.cat].subs || []).filter(s => s.active !== false)) : [];
-  if (subs.length) h += `<div class="chips"><button class="chip ${!f.sub ? 'on' : ''}" data-act="fsub" data-s="">Όλες οι κατηγορίες</button>` +
-    subs.map(s => `<button class="chip ${f.sub === s.id ? 'on' : ''}" data-act="fsub" data-s="${s.id}">${esc(s.name)}</button>`).join('') + '</div>';
+  if (subs.length) h += row(2, 'Κατηγορία', `<button class="chip ${!f.sub ? 'on' : ''}" data-act="fsub" data-s="">Όλες οι κατηγορίες</button>` +
+    subs.map(s => `<button class="chip ${f.sub === s.id ? 'on' : ''}" data-act="fsub" data-s="${s.id}">${esc(s.name)}</button>`).join(''));
   const types = f.sub ? ((subOf(f.cat, f.sub) || {}).types || []).filter(t => t.active !== false) : [];
-  if (types.length) h += `<div class="chips"><button class="chip ${!f.ptype ? 'on' : ''}" data-act="ftype" data-t="">Όλοι οι τύποι</button>` +
-    types.map(t => `<button class="chip ${f.ptype === t.id ? 'on' : ''}" data-act="ftype" data-t="${t.id}">${esc(t.name)}</button>`).join('') + '</div>';
+  if (types.length) h += row(3, 'Τύπος', `<button class="chip ${!f.ptype ? 'on' : ''}" data-act="ftype" data-t="">Όλοι οι τύποι</button>` +
+    types.map(t => `<button class="chip ${f.ptype === t.id ? 'on' : ''}" data-act="ftype" data-t="${t.id}">${esc(t.name)}</button>`).join(''));
   return h;
 }
 const hasAnyStock = p => Object.values((S.bal[p] || {}).q || {}).some(v => v > 0);

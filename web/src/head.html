@@ -366,4 +366,19 @@ tfoot td{font-weight:600;background:var(--surface2)}
 .pgrp:first-child{margin-top:0}
 .ptab tr.grprow td{background:var(--fg);color:var(--bg);padding:7px 12px;font:700 .76rem var(--f-display);letter-spacing:.06em;text-transform:uppercase;border:0}
 .ptab tr.grprow td span{position:sticky;left:12px}
+
+/* σειρές φίλτρων: τίτλος + χρώμα ανά επίπεδο */
+.chiprow{display:flex;flex-direction:column;gap:6px;padding:8px 10px 10px;border-radius:var(--r);border-left:4px solid var(--line)}
+.chiplbl{font:700 .68rem var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.chiprow.lv1{border-left-color:var(--fg);background:color-mix(in srgb,var(--fg) 5%,transparent)}
+.chiprow.lv1 .chip{border-color:var(--fg);font-weight:700}
+.chiprow.lv1 .chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chiprow.lv1 .chiplbl{color:var(--fg)}
+.chiprow.lv2{border-left-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.chiprow.lv2 .chip{border-color:color-mix(in srgb,var(--accent) 70%,var(--fg));background:var(--surface)}
+.chiprow.lv2 .chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chiprow.lv3{border-left-color:var(--muted);border-left-style:dashed}
+.chiprow.lv3 .chip{border-style:dashed}
+.chiprow.lv3 .chip.on{border-style:solid;border-width:2px;background:var(--surface);color:var(--fg);border-color:var(--fg)}
+.chiprow.lv0,.chiprow.lv4{border-left-color:transparent;padding-left:0}
 </style>
