@@ -21,11 +21,21 @@ function initWhForm(kind, a) {
   return S.form;
 }
 
-function catChips(f) {
-  // κάθε επίπεδο σε δική του σειρά, με τίτλο και δικό του χρώμα (ίδιο με τις ετικέτες των προϊόντων)
+// Οικογένεια καταχώρισης: «Έτοιμα προϊόντα» ή «Υλικά κατασκευών» (από τη σήμανση του είδους)
+const catIsMat = k => !!(S.cat[k] && S.cat[k].mat);
+function catChips(f, opt = {}) {
+  // opt.family: true = σειρά «Έτοιμα προϊόντα / Υλικά κατασκευών» · 'prod' = μόνο είδη έτοιμων προϊόντων
   const row = (lv, label, inner) => `<div class="chiprow lv${lv}"><span class="chiplbl">${label}</span><div class="chips" role="group" aria-label="${label}">${inner}</div></div>`;
-  const cats = activeList(S.cat);
-  let h = row(1, 'Είδος', `<button class="chip ${!f.cat ? 'on' : ''}" data-act="fcat" data-c="">Όλα τα είδη</button>` +
+  let h = '';
+  let cats = activeList(S.cat);
+  if (opt.family === true) {
+    if (f.kindF !== 'mat') f.kindF = 'prod';
+    h += `<div class="chiprow lv0"><span class="chiplbl">Καταχώριση</span><div class="chips" role="group" aria-label="Καταχώριση">${[['prod', 'Έτοιμα προϊόντα'], ['mat', 'Υλικά κατασκευών']].map(([k, l]) => `<button class="chip ${f.kindF === k ? 'on' : ''}" data-act="fkind" data-v="${k}">${l}</button>`).join('')}</div>
+      <div class="catpath" aria-label="Σειρά επιλογής"><span class="cp1">Είδος</span><span class="cpsep">–</span><span class="cp2">Κατηγορία</span><span class="cpsep">–</span><span class="cp3">Τύπος</span></div></div>`;
+    cats = cats.filter(([k]) => (f.kindF === 'mat') === catIsMat(k));
+  } else if (opt.family === 'prod') { f.kindF = 'prod'; cats = cats.filter(([k]) => !catIsMat(k)); }
+  if (f.cat && !cats.some(([k]) => k === f.cat)) { f.cat = ''; f.sub = ''; f.ptype = ''; }
+  h += row(1, 'Είδος', `<button class="chip ${!f.cat ? 'on' : ''}" data-act="fcat" data-c="">Όλα τα είδη</button>` +
     cats.map(([k, c]) => `<button class="chip ${f.cat === k ? 'on' : ''}" data-act="fcat" data-c="${k}">${esc(c.name)}</button>`).join(''));
   const subs = f.cat ? ((S.cat[f.cat].subs || []).filter(s => s.active !== false)) : [];
   if (subs.length) h += row(2, 'Κατηγορία', `<button class="chip ${!f.sub ? 'on' : ''}" data-act="fsub" data-s="">Όλες οι κατηγορίες</button>` +
@@ -38,6 +48,8 @@ function catChips(f) {
 const hasAnyStock = p => Object.values((S.bal[p] || {}).q || {}).some(v => v > 0);
 function prodMatches(p, f) {
   const x = S.prod[p]; if (!x || x.deleted || (x.active === false && !f.inactive && !hasAnyStock(p))) return false;
+  if (f.kindF === 'mat' && !isMat(p)) return false;
+  if (f.kindF === 'prod' && isMat(p)) return false;
   if (f.cat && x.cat !== f.cat) return false;
   if (f.sub && x.sub !== f.sub) return false;
   if (f.ptype && x.ptype !== f.ptype) return false;
@@ -118,7 +130,7 @@ function whFormView(kind, a) {
     ${noPerm ? `<div class="warnbox">Ο ρόλος σας (${esc(ROLE_LABEL[S.me.role])}) επιτρέπει μόνο προβολή σε αυτή την ενέργεια.</div>` : ''}
     <div class="panel"><div class="fields">${fields}</div></div>
     <div class="panel" style="display:flex;flex-direction:column;gap:12px">
-      ${catChips(f)}
+      ${catChips(f, { family: true })}
       <input type="search" id="fq" placeholder="Αναζήτηση με κωδικό, όνομα ή περιγραφή" value="${esc(f.q)}" aria-label="Αναζήτηση προϊόντων">
       ${kind === 'imp' ? `<div class="hint">Η λίστα είναι ο γενικός πίνακας προϊόντων. Επιλέξτε προϊόντα και ποσότητες για την αποθήκη· περιγραφή και φωτογραφία δεν ξαναπερνιούνται.</div>` : ''}
       ${kind === 'status' ? `<div class="hint">Για κάθε προϊόν συμπληρώστε σε ποια νέα κατάσταση περνά κάθε ποσότητα. Η συνολική ποσότητα δεν αλλάζει.</div>` : ''}
@@ -201,6 +213,7 @@ ACT.qinc = el => {
 ACT.qmax = el => { const inp = el.parentElement.querySelector('input'); inp.value = cartSetQty(el.dataset.k, inp.dataset.max, Number(inp.dataset.max)); };
 ACT.fcat = el => { S.form.cat = el.dataset.c; S.form.sub = ''; S.form.ptype = ''; render(true); };
 ACT.fsub = el => { S.form.sub = el.dataset.s; S.form.ptype = ''; render(true); };
+ACT.fkind = el => { const o = S.route.v === 'prods' ? S.listF : S.form; o.kindF = el.dataset.v; o.cat = ''; o.sub = ''; o.ptype = ''; render(true); };
 ACT.ftype = el => { (S.route.v === 'prods' ? S.listF : S.form).ptype = el.dataset.t; render(true); };
 const stTabs = k => `<div class="tabs"><button class="${k === 'status' ? 'on' : ''}" data-act="stTab" data-k="status">Αλλαγή κατάστασης</button><button class="${k === 'retireg' ? 'on' : ''}" data-act="stTab" data-k="retireg">Απόσυρση από γυμναστήριο</button><button class="${k === 'retire' ? 'on' : ''}" data-act="stTab" data-k="retire">Απόσυρση από αποθήκη</button></div>`;
 ACT.stTab = el => { if (el.dataset.k === 'retireg') { S.form = null; return go('retireg'); } const keep = S.form ? { wh: S.form.wh, sec: S.form.sec } : null; S.form = null; initWhForm(el.dataset.k); if (keep) Object.assign(S.form, keep); go(el.dataset.k, null, true); };
@@ -593,7 +606,7 @@ VIEWS.retireg = a => {
     <div class="panel"><div class="fields">${gymSelect('rggym', f.gym)}
       <div class="f"><label for="rgreason">Αιτιολογία</label><input type="text" id="rgreason" value="${esc(f.reason)}" placeholder="π.χ. Καμμένα, σπασμένα"></div></div>
       <p class="hint" style="margin-top:10px">Αφορά όσα είναι εγκατεστημένα στο γυμναστήριο. Τα αποθηκευμένα σε αποθήκη του γυμναστηρίου${gw.length ? ` (${gw.map(whName).map(esc).join(', ')})` : ''} αποσύρονται από την καρτέλα «Απόσυρση από αποθήκη».</p></div>
-    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f)}
+    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f, { family: 'prod' })}
       <input type="search" id="fq" placeholder="Αναζήτηση με κωδικό, όνομα ή περιγραφή" value="${esc(f.q)}" aria-label="Αναζήτηση προϊόντων"></div>
     <div class="plist" id="glist"></div>
     <div class="cartbar" id="cartbar"></div></div>`;
@@ -757,7 +770,7 @@ VIEWS.gymout = a => {
       <span class="lbl" style="display:block;margin-top:12px">Κατάσταση προϊόντων</span>
       <div class="chips" style="margin-top:6px"><button class="chip ${f.cond === 'N' ? 'on' : ''}" data-act="gmCond" data-v="N">Καλή κατάσταση</button><button class="chip ${f.cond === 'U' ? 'on' : ''}" data-act="gmCond" data-v="U">Μεταχειρισμένο</button></div>
       <p class="hint" style="margin-top:10px">${f.dest === 'W' ? 'Στην αποθήκη μπαίνουν ως «' + (f.cond === 'U' ? 'Μεταχειρισμένα' : 'Κανονικά') + '».' : 'Στο άλλο γυμναστήριο καταχωρίζονται ως εγκατεστημένα, με νέα λίστα τοποθέτησης (σκοπός «Μεταφορά από άλλο γυμναστήριο»).'} Χαλασμένα αποσύρονται από «Καταστάσεις & απόσυρση → Απόσυρση από γυμναστήριο».</p></div>
-    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f)}
+    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f, { family: 'prod' })}
       <input type="search" id="fq" placeholder="Αναζήτηση με κωδικό, όνομα ή περιγραφή" value="${esc(f.q)}" aria-label="Αναζήτηση προϊόντων"></div>
     <div class="plist" id="glist"></div>
     <div class="cartbar" id="cartbar"></div></div>`;
@@ -793,7 +806,7 @@ VIEWS.gymsup = a => {
     <div class="panel"><div class="fields">${gymSelect('sgym', f.gym, { blank: true })}
       <div class="f"><label for="ssup">Προμηθευτής</label><input type="text" id="ssup" value="${esc(f.supplier)}" placeholder="π.χ. Technogym Hellas"></div>
       ${purposeField('spur', f.purpose, f.reason)}</div></div>
-    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f)}
+    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f, { family: 'prod' })}
       <input type="search" id="fq" placeholder="Αναζήτηση στον γενικό πίνακα προϊόντων" value="${esc(f.q)}" aria-label="Αναζήτηση προϊόντων"></div>
     <div class="plist" id="slist"></div>
     <div class="cartbar" id="cartbar"></div></div>`;

@@ -247,10 +247,10 @@ function whQty(p, w) { let n = 0; for (const [k, v] of Object.entries(balQ(p))) 
 VIEWS.prods = () => {
   const f = S.listF = (S.listF && S.listF.k === 'prods') ? S.listF : { k: 'prods', cat: '', sub: '', q: '', zero: false, inactive: false, mode: 'wh', gym: '', inGym: true };
   if (f.inGym == null) f.inGym = true;
+  if (f.kindF !== 'mat') f.kindF = 'prod';
   const gyms = activeList(S.gym);
   if (f.gym && !S.gym[f.gym]) f.gym = '';
   let ids = Object.keys(S.prod).filter(p => prodMatches(p, f));
-  if (f.kindF) ids = ids.filter(p => f.kindF === 'mat' ? isMat(p) : !isMat(p));
   if (f.zero) ids = ids.filter(p => prodTotals(p).avail <= 0);
   if (f.mode === 'gym' && f.inGym) ids = ids.filter(p => (f.gym ? [f.gym] : gyms.map(g => g[0])).some(g => { const i = gymProd(g, p); return i.inst || i.stored; }));
   sortProds(ids);
@@ -294,7 +294,7 @@ VIEWS.prods = () => {
     : 'Διαθέσιμα προς χρήση = κανονικά (καλή κατάσταση) σε αποθήκες, αποθήκες γυμναστηρίων και οχήματα. Όχι προς χρήση = παλιά (μεταχειρισμένα, κατεστραμμένα, προς έλεγχο) και εγκατεστημένα σε γυμναστήρια, μόνο για ενημέρωση.';
   return `<div class="wrap">${pageHead(`${ids.length} κωδικοί · κοινός για όλες τις αποθήκες και τα γυμναστήρια`, 'Γενικός πίνακας προϊόντων', can('product_create') ? `<button class="btn pri" data-act="newProdNav">+ Νέο προϊόν</button>` : '')}
     <p class="hint">Κάθε προϊόν καταχωρίζεται μία φορά εδώ, με περιγραφή και φωτογραφία. Οι ποσότητες σε κάθε αποθήκη ορίζονται από το κουμπί «+ Ποσότητες» ή από την Εισαγωγή, χωρίς να ξαναπεράσετε στοιχεία του προϊόντος.</p>
-    <div class="panel" style="display:flex;flex-direction:column;gap:12px"><div class="chiprow lv0"><span class="chiplbl">Καταχώριση</span><div class="chips" role="group" aria-label="Κατηγορία καταχώρισης">${[['', 'Όλα'], ['prod', 'Έτοιμα προϊόντα'], ['mat', 'Υλικά κατασκευών']].map(([k, l]) => `<button class="chip ${(f.kindF || '') === k ? 'on' : ''}" data-act="pkind" data-v="${k}">${l}</button>`).join('')}</div></div>${catChips(f).replace(/data-act="fcat"/g, 'data-act="lcat"').replace(/data-act="fsub"/g, 'data-act="lsub"')}
+    <div class="panel" style="display:flex;flex-direction:column;gap:12px">${catChips(f, { family: true }).replace(/data-act="fcat"/g, 'data-act="lcat"').replace(/data-act="fsub"/g, 'data-act="lsub"')}
       <input type="search" id="pq" value="${esc(f.q)}" placeholder="Αναζήτηση με κωδικό, όνομα, περιγραφή" aria-label="Αναζήτηση">
       <div class="row"><div class="chiprow lv4"><span class="chiplbl">Προβολή</span><div class="chips"><button class="chip ${f.mode === 'wh' ? 'on' : ''}" data-act="pmode" data-m="wh">Διαθέσιμα προς χρήση</button><button class="chip ${f.mode === 'gym' ? 'on' : ''}" data-act="pmode" data-m="gym">Ανά γυμναστήριο</button><button class="chip ${f.mode === 'st' ? 'on' : ''}" data-act="pmode" data-m="st">Ανά κατάσταση</button></div></div>
         <label class="check"><input type="checkbox" id="pzero" ${f.zero ? 'checked' : ''}> Μόνο όσα δεν έχουν διαθέσιμα</label><label class="check"><input type="checkbox" id="pina" ${f.inactive ? 'checked' : ''}> Εμφάνιση ανενεργών</label></div>
@@ -304,7 +304,6 @@ VIEWS.prods = () => {
     </tbody></table></div></div>`;
 };
 ACT.pmode = el => { S.listF.mode = el.dataset.m; render(true); };
-ACT.pkind = el => { S.listF.kindF = el.dataset.v; render(true); };
 ACT.distrib = (el, e) => { e.stopPropagation(); openDistribute(el.dataset.p); };
 /* Ποσότητες ενός προϊόντος σε πολλές αποθήκες μαζί: μία εισαγωγή ανά αποθήκη */
 function openDistribute(p, isNew) {
