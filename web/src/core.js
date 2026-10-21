@@ -51,6 +51,11 @@ const secName = (whId, sec) => {
 };
 // για εμφάνιση σε γραμμές: κενό όταν η αποθήκη δεν έχει χώρους
 const secLabel = (whId, sec) => (hasSections(whId) || (sec && sec !== DEF_SEC)) ? secName(whId, sec) : '';
+// Είδος / Κατηγορία / Τύπος ως ξεχωριστές ετικέτες (διαφορετικό στυλ η καθεμία)
+const catTags = p => { const x = S.prod[p]; if (!x) return ''; const a = catName(x.cat), b = subName(x.cat, x.sub), c = typeName(x.cat, x.sub, x.ptype);
+  return `<span class="ctags">${a ? `<span class="ctag k1" title="Είδος">${esc(a)}</span>` : ''}${b ? `<span class="ctag k2" title="Κατηγορία">${esc(b)}</span>` : ''}${c ? `<span class="ctag k3" title="Τύπος">${esc(c)}</span>` : ''}</span>`; };
+// επικεφαλίδα ομάδας: Είδος › Κατηγορία
+const catGroup = p => { const x = S.prod[p]; if (!x) return ''; return [catName(x.cat) || 'Χωρίς είδος', subName(x.cat, x.sub)].filter(Boolean).join(' › '); };
 const catLabel = p => { const x = S.prod[p]; return x ? [catName(x.cat), subName(x.cat, x.sub), typeName(x.cat, x.sub, x.ptype)].filter(Boolean).join(' / ') : ''; };
 const prodName = p => (S.prod[p] && S.prod[p].name) || '(διαγραμμένο προϊόν)';
 const prodCode = p => (S.prod[p] && S.prod[p].code) || '';

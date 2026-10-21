@@ -46,7 +46,10 @@ function prodMatches(p, f) {
   }
   return true;
 }
-const sortProds = ids => ids.sort((a, b) => prodName(a).localeCompare(prodName(b), 'el'));
+// ταξινόμηση: Είδος → Κατηγορία → Τύπος → όνομα (ώστε τα όμοια να είναι μαζί)
+const sortProds = ids => ids.sort((a, b) => { const x = S.prod[a] || {}, y = S.prod[b] || {};
+  return (catName(x.cat) || '~').localeCompare(catName(y.cat) || '~', 'el') || (subName(x.cat, x.sub) || '').localeCompare(subName(y.cat, y.sub) || '', 'el')
+    || (typeName(x.cat, x.sub, x.ptype) || '').localeCompare(typeName(y.cat, y.sub, y.ptype) || '', 'el') || prodName(a).localeCompare(prodName(b), 'el', { numeric: true }); });
 
 function qtyCtl(key, cur, max) {
   return `<div class="qty"><button type="button" data-act="qinc" data-k="${esc(key)}" data-d="-1" aria-label="Μείωση">−</button>
@@ -142,8 +145,10 @@ function renderPickList() {
     box.innerHTML = `<div class="empty">${D.needStock ? `Δεν υπάρχει διαθέσιμο απόθεμα (${esc(ENG.ST[st].toLowerCase())}) στην «${esc(whName(f.wh))}»${hasSections(f.wh) ? ' / ' + esc(secName(f.wh, f.sec)) : ''} για αυτά τα φίλτρα.` : 'Δεν βρέθηκαν προϊόντα. Δημιουργήστε νέο προϊόν.'}</div>`;
     return;
   }
+  let lastG = null;
   box.innerHTML = ids.slice(0, 300).map(p => {
     const x = S.prod[p]; const avail = whAvail(p, f.wh, f.sec, st);
+    const g = catGroup(p); const gh = g !== lastG ? `<div class="pgrp">${esc(g)}</div>` : ''; lastG = g;
     const key = `${p}|${f.sec}|${st}`; const c = f.cart[key];
     let ctl;
     if (f.kind === 'status') {
@@ -154,8 +159,8 @@ function renderPickList() {
     const stockLine = D.needStock
       ? `<span><b class="num">${fmtN(avail)}</b> ${esc(x.unit)} διαθέσιμα</span>`
       : `<span>Σε αυτή την αποθήκη: <b class="num">${fmtN(whAvail(p, f.wh, f.sec, 'N'))}</b> ${esc(x.unit)}</span>`;
-    return `<div class="prow ${c ? 'sel' : ''}" data-row="${esc(key)}">${thumb(p)}
-      <div class="pinfo"><span class="nm">${esc(x.name)}</span><span class="meta"><span class="mono">${esc(x.code)}</span><span>${esc(catLabel(p))}</span>${stockLine}</span></div>
+    return `${gh}<div class="prow ${c ? 'sel' : ''}" data-row="${esc(key)}">${thumb(p)}
+      <div class="pinfo"><span class="nm">${esc(x.name)}</span>${catTags(p)}<span class="meta"><span class="mono">${esc(x.code)}</span>${stockLine}</span></div>
       ${ctl}</div>`;
   }).join('') + (ids.length > 300 ? `<div class="empty">Εμφανίζονται τα πρώτα 300. Περιορίστε την αναζήτηση.</div>` : '');
   fillPhotos(box);
@@ -597,7 +602,7 @@ function renderGymRetList() {
   const ids = sortProds(Object.keys(by).filter(p => prodMatches(p, f) || (S.prod[p] && S.prod[p].active === false)));
   if (!ids.length) { box.innerHTML = `<div class="empty">Δεν υπάρχουν εγκατεστημένα προϊόντα στο «${esc(gymName(f.gym))}» για αυτά τα φίλτρα.</div>`; return; }
   box.innerHTML = ids.map(p => `<div class="prow ${f.cart[p] ? 'sel' : ''}">${thumb(p)}<div class="pinfo"><span class="nm">${esc(prodName(p))}</span>
-    <span class="meta"><span class="mono">${esc(prodCode(p))}</span><span>${esc(catLabel(p))}</span><span><b class="num">${fmtN(by[p])}</b> ${esc(unitOf(p))} εγκατεστημένα</span></span></div>
+    ${catTags(p)}<span class="meta"><span class="mono">${esc(prodCode(p))}</span><span><b class="num">${fmtN(by[p])}</b> ${esc(unitOf(p))} εγκατεστημένα</span></span></div>
     <div class="qty"><input type="number" min="0" step="any" data-gp="${p}" data-max="${by[p]}" value="${f.cart[p] || ''}" placeholder="0" aria-label="Ποσότητα"><button type="button" class="max" data-act="gmax" data-p="${p}" data-max="${by[p]}">ΟΛΑ</button></div></div>`).join('');
   fillPhotos(box);
   $$('[data-gp]', box).forEach(inp => inp.oninput = () => gymSet(inp));
@@ -663,7 +668,7 @@ function openPlaceReview({ src, veh, wh, gym, purpose, reason, lines, onDone, su
     openModal(`${mhead(src === 'sup' ? 'Εισαγωγή σε γυμναστήριο από προμηθευτή' : 'Τοποθέτηση σε γυμναστήριο', `${esc(gymName(gym))} · από ${src === 'veh' ? esc(vehName(veh)) : src === 'sup' ? esc(supplier || 'προμηθευτή') : esc(whName(wh))}`)}
       <div class="row"><span class="lbl">Για όλα</span><button class="btn sm" id="allNew">Όλα νέα τοποθέτηση</button><button class="btn sm" id="allRepl">Όλα αντικατάσταση</button></div>
       <div class="rvlist">${rows.map((r, i) => `<div class="rv ${r.purpose === 'repl' ? 'repl' : ''}">
-        <div class="hd">${thumb(r.p)}<div class="nm"><b>${esc(prodName(r.p))}</b><div class="small muted">${esc(catLabel(r.p))}</div></div><b class="num" style="white-space:nowrap">${qtyU(r.qty, r.p)}</b></div>
+        <div class="hd">${thumb(r.p)}<div class="nm"><b>${esc(prodName(r.p))}</b>${catTags(r.p)}</div><b class="num" style="white-space:nowrap">${qtyU(r.qty, r.p)}</b></div>
         <div class="f"><label for="pp${i}">Σκοπός</label><select id="pp${i}" data-pp="${i}">${opt('new', 'Νέα τοποθέτηση', r.purpose !== 'repl')}${opt('repl', 'Αντικατάσταση', r.purpose === 'repl')}</select></div>
         ${r.purpose === 'repl' ? `<div class="small" style="margin:2px 0 6px">Τι έγιναν τα ${qtyU(r.qty, r.p)} παλιά; Σύνολο ${fmtN(r.qty)}. <span data-osum="${i}"></span></div>
           <div class="chips" style="margin-bottom:6px">${OLD_KINDS.map(([k, , s]) => `<button type="button" class="chip" data-oall="${i}" data-k="${k}">Όλα: ${s}</button>`).join('')}</div>
@@ -796,7 +801,7 @@ function renderSupList() {
   const ids = sortProds(Object.keys(S.prod).filter(p => prodMatches(p, f) && !isMat(p)));
   if (!ids.length) { box.innerHTML = '<div class="empty">Δεν βρέθηκαν προϊόντα.</div>'; return; }
   box.innerHTML = ids.slice(0, 300).map(p => `<div class="prow ${f.cart[p] ? 'sel' : ''}">${thumb(p)}<div class="pinfo"><span class="nm">${esc(prodName(p))}</span>
-    <span class="meta"><span class="mono">${esc(prodCode(p))}</span><span>${esc(catLabel(p))}</span><span>${esc(unitOf(p))}</span></span></div>
+    ${catTags(p)}<span class="meta"><span class="mono">${esc(prodCode(p))}</span><span>${esc(unitOf(p))}</span></span></div>
     <div class="qty"><input type="number" min="0" step="any" data-sp="${p}" value="${f.cart[p] || ''}" placeholder="0" aria-label="Ποσότητα"></div></div>`).join('');
   fillPhotos(box);
   $$('[data-sp]', box).forEach(inp => inp.oninput = () => { const n = Number(inp.value) || 0; if (n > 0) f.cart[inp.dataset.sp] = n; else delete f.cart[inp.dataset.sp]; inp.closest('.prow').classList.toggle('sel', n > 0); updateSupBar(); });
