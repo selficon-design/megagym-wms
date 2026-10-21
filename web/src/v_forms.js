@@ -485,6 +485,12 @@ function openProdEditor(pid, onSaved, initialFile) {
   if (pid && !x.kind) x.kind = isMat(pid) ? 'mat' : 'prod';
   if (!pid && x.kind === 'mat' && S.units.some(u => u.k === 'φύλλα')) x.unit = 'φύλλα';
   let newPhoto = null, removePhoto = false;
+  // Είδος: μόνο τα είδη της οικογένειας (έτοιμα προϊόντα ή υλικά κατασκευών) — και το τρέχον, αν διαφέρει (παλιές καταχωρίσεις)
+  const famCats = () => activeList(S.cat).filter(([k]) => (x.kind === 'mat') === catIsMat(k) || (pid && k === S.prod[pid].cat));
+  const fitCat = () => { const fc = famCats(); if (!fc.some(([k]) => k === x.cat)) { x.cat = fc.length ? fc[0][0] : ''; x.sub = ''; x.ptype = ''; } };
+  const catOpts = () => { const fc = famCats(); return fc.length ? fc.map(([k, c]) => opt(k, c.name, k === x.cat)).join('')
+    : opt('', x.kind === 'mat' ? '— Δεν υπάρχει είδος υλικών (Ρυθμίσεις → Είδη) —' : '— Δεν υπάρχει είδος έτοιμων προϊόντων —', true); };
+  fitCat();
   const typeOpts = (c, s) => `${opt('', '— Χωρίς τύπο —', !x.ptype)}${((subOf(c, s) || {}).types || []).filter(t => t.active !== false || t.id === x.ptype).map(t => opt(t.id, t.name, t.id === x.ptype)).join('')}`;
   const subOpts = c => `${opt('', '— Χωρίς κατηγορία —', !x.sub)}${((S.cat[c] && S.cat[c].subs) || []).filter(s => s.active !== false || s.id === x.sub).map(s => opt(s.id, s.name, s.id === x.sub)).join('')}`;
   openModal(`${mhead(pid ? 'Επεξεργασία προϊόντος' : 'Νέο προϊόν')}
@@ -494,7 +500,7 @@ function openProdEditor(pid, onSaved, initialFile) {
     <div class="fields">
       <div class="f"><label for="pcode">Κωδικός</label><input type="text" id="pcode" value="${esc(x.code)}"></div>
       <div class="f" style="grid-column:span 2"><label for="pname">Ονομασία</label><input type="text" id="pname" value="${esc(x.name)}" autofocus></div>
-      <div class="f"><label for="pcat">Είδος</label><select id="pcat">${activeList(S.cat).map(([k, c]) => opt(k, c.name, k === x.cat)).join('')}</select></div>
+      <div class="f"><label for="pcat">Είδος</label><select id="pcat">${catOpts()}</select></div>
       <div class="f"><label for="psub">Κατηγορία</label><select id="psub">${subOpts(x.cat)}</select></div>
       <div class="f"><label for="ptype">Τύπος</label><select id="ptype">${typeOpts(x.cat, x.sub)}</select></div>
       <div class="f"><label for="punit">Μονάδα μέτρησης</label><select id="punit">${S.units.map(u => opt(u.k, `${u.n} (${u.k})`, u.k === x.unit)).join('')}</select></div>
@@ -533,12 +539,13 @@ function openProdEditor(pid, onSaved, initialFile) {
   const px = $('#pphx'); if (px) px.onclick = () => { removePhoto = true; newPhoto = null; $('#pphv').innerHTML = 'ΧΩΡΙΣ<br>ΦΩΤΟ'; };
   $$('[data-pk]').forEach(b => b.onclick = () => { x.kind = b.dataset.pk; $$('[data-pk]').forEach(c => c.classList.toggle('on', c === b)); $('#pdimsw').style.display = x.kind === 'mat' ? '' : 'none';
     $('#pkhint').textContent = x.kind === 'mat' ? 'Υλικό: καταναλώνεται με «Επεξεργασία» και μπορεί να αφήσει ρετάλια με διάσταση.' : 'Έτοιμο προϊόν: τοποθετείται / εγκαθίσταται.';
-    if (x.kind === 'mat' && !pid && $('#punit').value === 'τεμ' && S.units.some(u => u.k === 'φύλλα')) $('#punit').value = 'φύλλα'; });
+    if (x.kind === 'mat' && !pid && $('#punit').value === 'τεμ' && S.units.some(u => u.k === 'φύλλα')) $('#punit').value = 'φύλλα';
+    const before = x.cat; fitCat(); $('#pcat').innerHTML = catOpts(); if (x.cat !== before) { $('#psub').innerHTML = subOpts(x.cat); $('#ptype').innerHTML = typeOpts(x.cat, ''); } });
   $('#psave').onclick = async () => {
     const code = $('#pcode').value.trim(), name = $('#pname').value.trim();
     const err = m => $('#perr').innerHTML = `<div class="errbox">${esc(m)}</div>`;
     if (!code || !name) return err('Συμπληρώστε κωδικό και ονομασία.');
-    if (!$('#pcat').value) return err('Δημιουργήστε πρώτα ένα είδος στις Ρυθμίσεις.');
+    if (!$('#pcat').value) return err(x.kind === 'mat' ? 'Δεν υπάρχει είδος υλικών κατασκευών. Δημιουργήστε το στις Ρυθμίσεις → Είδη, με τσεκαρισμένο «Είδος υλικών κατασκευών».' : 'Δημιουργήστε πρώτα ένα είδος στις Ρυθμίσεις.');
     const dup = Object.entries(S.prod).find(([k, p]) => k !== pid && !p.deleted && norm(p.code) === norm(code));
     if (dup) return err(`Ο κωδικός ${code} χρησιμοποιείται ήδη από το «${dup[1].name}».`);
     const same = Object.entries(S.prod).find(([k, p]) => k !== pid && !p.deleted && norm(p.name) === norm(name));
