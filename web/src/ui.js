@@ -97,7 +97,8 @@ function renderNav() {
   $('#nav').innerHTML = `<div class="modesw" role="group" aria-label="Τρόπος εργασίας"><span class="lbl">Τρόπος εργασίας</span>${MODES.map(([m, l]) => `<button class="${MODE === m ? 'on' : ''}" data-act="mode" data-m="${m}">${esc(l)}</button>`).join('')}</div>` +
     NAV.map(([g, items]) => [g, items.filter(it => inMode(it[2]) || it[0] === cur)]).filter(([, items]) => items.length).map(([g, items]) => `<h4>${g}</h4>` + items.map(([k, l]) =>
     `<a data-go="${k}" class="${cur === k ? 'on' : ''}" href="#${k}">${esc(l)}${counts[k] ? `<span class="ct">${counts[k]}</span>` : ''}</a>`).join('')).join('') +
-    `<h4>Εμφάνιση</h4><div class="themeseg" role="group" aria-label="Θέμα"><button data-act="themeSet" data-t="light" class="${themeNow() === 'light' ? 'on' : ''}">☀ Μέρα</button><button data-act="themeSet" data-t="dark" class="${themeNow() === 'dark' ? 'on' : ''}">☾ Νύχτα</button></div>`;
+    `<h4>Εμφάνιση</h4><div class="themeseg" role="group" aria-label="Θέμα"><button data-act="themeSet" data-t="light" class="${themeNow() === 'light' ? 'on' : ''}">☀ Μέρα</button><button data-act="themeSet" data-t="dark" class="${themeNow() === 'dark' ? 'on' : ''}">☾ Νύχτα</button></div>
+    <div class="small muted" style="margin:18px 6px 0">Έκδοση ${esc(typeof APP_BUILD !== 'undefined' ? APP_BUILD : '')}</div>`;
   renderThemeBtn();
 }
 function renderWho() {

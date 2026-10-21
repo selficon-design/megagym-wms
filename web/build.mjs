@@ -32,11 +32,12 @@ ${opErr}
 `);
 
 // 3) Η εφαρμογή: ένα index.html (όπως η δοκιμαστική) + PWA αρχεία
-const order = ['theme.js', 'sb.js', 'engine.js', 'core.js', 'ui.js', 'v_forms.js', 'v_lists.js', 'v_more.js', 'v_mats.js', 'v_repl.js', 'manual.js', 'ai.js', 'voice.js', 'start.js', 'auth.js'];
+const order = ['theme.js', 'sb.js', 'engine.js', 'core.js', 'ui.js', 'v_forms.js', 'v_lists.js', 'v_more.js', 'v_mats.js', 'v_repl.js', 'manual.js', 'ai.js', 'voice.js', 'start.js', 'update.js', 'auth.js'];
 const body = readFileSync(join(root, 'web/src/body.html'), 'utf8');
-const js = order.map(src).join('\n');
+const BUILD = new Date().toLocaleString('el-GR', { timeZone: 'Europe/Athens', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + (process.env.GITHUB_SHA ? ' · ' + process.env.GITHUB_SHA.slice(0, 7) : '');
+const js = `const APP_BUILD = ${JSON.stringify(BUILD)};\n` + order.map(src).join('\n');
 const html = `<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111111"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#111111"><meta http-equiv="Cache-Control" content="no-cache"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="MEGA GYM">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
@@ -56,4 +57,5 @@ const url = (process.env.SUPABASE_URL || '').replace(/\s+/g, ''), key = (process
 if (url && key) writeFileSync(join(dist, 'config.js'), `window.MG_CONFIG = ${JSON.stringify({ url, anonKey: key })};\n`);
 else if (!existsSync(join(dist, 'config.js'))) writeFileSync(join(dist, 'config.js'), 'window.MG_CONFIG = window.MG_CONFIG || null;\n');
 writeFileSync(join(dist, '.nojekyll'), '');
+writeFileSync(join(dist, 'version.json'), JSON.stringify({ build: BUILD }));
 console.log('OK', (html.length / 1024).toFixed(0) + ' KB', url ? '(με ρυθμίσεις Supabase)' : '(χωρίς ρυθμίσεις — config.js κενό)');
