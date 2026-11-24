@@ -152,7 +152,7 @@ jobs:
             # σύνδεση όπως η εφαρμογή (ελληνικά, λεξιλόγιο, χωρίς «εεε») — πρέπει να ανοίξει συνεδρία χωρίς σφάλμα
             TOK=$(python3 -c "import json;print(json.load(open('/tmp/k'))['token'])")
             TOK="$TOK" node -e '
-              const q = new URLSearchParams({ model_id: "scribe_v2_realtime", token: process.env.TOK, audio_format: "pcm_16000", commit_strategy: "vad", language_code: "el", no_verbatim: "true", multilang_mode: "true" }); q.append("secondary_languages", "en");
+              const q = new URLSearchParams({ model_id: "scribe_v2_realtime", token: process.env.TOK, audio_format: "pcm_16000", commit_strategy: "vad", language_code: "el", no_verbatim: "true" }); q.append("secondary_languages", "en");
               ["ΤΑΤΟΙΟΥ 45", "MEGA GYM Γλυφάδα", "INOX ΛΑΜΑΡΙΝΕΣ", "ZS-C2", "γράψε"].forEach(t => q.append("keyterms", t));
               const ws = new WebSocket("wss://api.elevenlabs.io/v1/speech-to-text/realtime?" + q); let ok = false;
               const done = (m, c) => { console.log(m); process.exit(c); };

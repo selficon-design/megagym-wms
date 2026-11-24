@@ -250,34 +250,50 @@ async function micStart() {
       if (L.open && L.ws && L.ws.readyState === 1) L.ws.send(msg); else if (L.queue.length < 400) L.queue.push(msg);
     };
     L.src.connect(L.proc); L.proc.connect(ctx.destination);
-    try {
-      const k = await SB.fn('stt', { action: 'token' });
-      if (L !== VOICE.live) return;
-      const q = new URLSearchParams({ model_id: 'scribe_v2_realtime', token: k.token, audio_format: 'pcm_16000', commit_strategy: 'vad', language_code: k.language || 'el', no_verbatim: 'true', multilang_mode: 'true' });
-      q.append('secondary_languages', 'en'); // ελληνικά κυρίως, δέχεται και αγγλικά στην ίδια φράση
-      // ονόματα του καταλόγου ως λεξιλόγιο (όσο χωρά στη διεύθυνση)
-      let len = 0; for (const t of sttKeyterms()) { len += t.length + 12; if (len > 3000) break; q.append('keyterms', t); }
-      const ws = L.ws = new WebSocket('wss://api.elevenlabs.io/v1/speech-to-text/realtime?' + q);
-      ws.onmessage = ev => {
-        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        const ty = m.message_type;
-        if (ty === 'session_started') { L.open = true; while (L.queue.length) ws.send(L.queue.shift()); }
-        else if (ty === 'partial_transcript' && !L.skip) { L.partial = m.text || ''; liveShow(); }
-        else if (ty === 'committed_transcript' || ty === 'committed_transcript_with_timestamps') {
-          if (L.skip) { // η φράση που διορθώσατε με το χέρι δεν ξαναγράφεται· κρατάμε μόνο όσα είπατε ΜΕΤΑ τη διόρθωση
-            const rem = String(m.text || '').trim().split(/\s+/).slice(L.skip.trim().split(/\s+/).length).join(' ');
-            L.skip = ''; L.partial = ''; if (rem) L.committed = joinTxt(L.committed, rem); }
-          else { L.committed = joinTxt(L.committed, m.text); L.partial = ''; }
-          liveShow(); L.waiters.splice(0).forEach(f => f()); }
-        else if (ty === 'partial_transcript' && L.skip) { /* αγνοείται μέχρι να κλείσει η διορθωμένη φράση */ }
-        else if (m.error || /error|exceeded|limit|invalid/.test(ty || '')) { console.warn('stt', m); if (!L.open) liveFallback(L, m.error || ty); }
-      };
-      ws.onerror = () => { if (!L.open) liveFallback(L, 'σύνδεση'); };
-      ws.onclose = () => { L.open = false; L.waiters.splice(0).forEach(f => f()); };
-    } catch (e) { liveFallback(L, e.message); }
+    connectLive(L, VOICE.sttVariant || 0);
   }
   if (L.mode === 'batch') batchStart(L);
   L.timer = setTimeout(() => { if (VOICE.live === L) micStop(false); }, 120000); // έως 2 λεπτά
+}
+
+// Ρυθμίσεις ζωντανής καταγραφής, από την πληρέστερη στην απλούστερη: αν το ElevenLabs δεν δεχτεί μία,
+// δοκιμάζεται η επόμενη (με νέο κλειδί μιας χρήσης) — και μόνο στο τέλος ηχογράφηση/μετατροπή.
+const STT_VARIANTS = [
+  q => q.append('secondary_languages', 'en'), // ελληνικά κυρίως + αγγλικά
+  q => {},                                     // μόνο ελληνικά
+];
+async function connectLive(L, vi) {
+  if (L !== VOICE.live || L.mode !== 'live') return;
+  let tried = false;
+  const retryOrFallback = why => {
+    if (tried || L !== VOICE.live || L.open) return; tried = true;
+    if (vi + 1 < STT_VARIANTS.length) { VOICE.sttVariant = vi + 1; connectLive(L, vi + 1); } else liveFallback(L, why);
+  };
+  try {
+    const k = await SB.fn('stt', { action: 'token' });
+    if (L !== VOICE.live) return;
+    const q = new URLSearchParams({ model_id: 'scribe_v2_realtime', token: k.token, audio_format: 'pcm_16000', commit_strategy: 'vad', language_code: k.language || 'el', no_verbatim: 'true' });
+    STT_VARIANTS[vi](q);
+    // ονόματα του καταλόγου ως λεξιλόγιο (όσο χωρά στη διεύθυνση)
+    let len = 0; for (const t of sttKeyterms()) { len += t.length + 12; if (len > 3000) break; q.append('keyterms', t); }
+    const ws = L.ws = new WebSocket('wss://api.elevenlabs.io/v1/speech-to-text/realtime?' + q);
+      ws.onmessage = ev => {
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      const ty = m.message_type;
+      if (ty === 'session_started') { L.open = true; while (L.queue.length) ws.send(L.queue.shift()); }
+      else if (ty === 'partial_transcript' && !L.skip) { L.partial = m.text || ''; liveShow(); }
+      else if (ty === 'committed_transcript' || ty === 'committed_transcript_with_timestamps') {
+        if (L.skip) { // η φράση που διορθώσατε με το χέρι δεν ξαναγράφεται· κρατάμε μόνο όσα είπατε ΜΕΤΑ τη διόρθωση
+          const rem = String(m.text || '').trim().split(/\s+/).slice(L.skip.trim().split(/\s+/).length).join(' ');
+          L.skip = ''; L.partial = ''; if (rem) L.committed = joinTxt(L.committed, rem); }
+        else { L.committed = joinTxt(L.committed, m.text); L.partial = ''; }
+        liveShow(); L.waiters.splice(0).forEach(f => f()); }
+      else if (ty === 'partial_transcript' && L.skip) { /* αγνοείται μέχρι να κλείσει η διορθωμένη φράση */ }
+      else if (m.error || /error|exceeded|limit|invalid/.test(ty || '')) { console.warn('stt', m); if (!L.open) { try { ws.close(); } catch (e) {} retryOrFallback(m.error || ty); } }
+    };
+    ws.onerror = () => { if (!L.open) retryOrFallback('σύνδεση'); };
+    ws.onclose = () => { L.open = false; L.waiters.splice(0).forEach(f => f()); };
+  } catch (e) { liveFallback(L, e.message); }
 }
 // εναλλακτικά: ηχογράφηση και μετατροπή στο τέλος (αν δεν γίνεται ζωντανά)
 function liveFallback(L, why) {
