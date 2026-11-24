@@ -65,6 +65,7 @@ function ttsPrepare(t) {
   s = s.replace(/^\s*[-•*]\s+/gm, '\n'); // κουκκίδες → νέα γραμμή (παύση)
   s = s.replace(/(\d)\s*[xX×χΧ]\s*(?=\d)/g, '$1 επί '); // διαστάσεις: 1250X2500 → «1250 επί 2500»
   s = s.replace(/(\d)\s*°\s*C\b/g, '$1 βαθμούς Κελσίου').replace(/(\d)\s*°/g, '$1 μοίρες').replace(/°/g, ' μοίρες '); // 45° → 45 μοίρες
+  s = s.replace(/(\d)\s*(degrees?|deg|kw|w|v|mm|cm|kg)(?![\p{L}\d])/giu, (m, d, u) => d + ' ' + ({ degree: 'μοίρες', degrees: 'μοίρες', deg: 'μοίρες', kw: 'κιλοβάτ', w: 'βατ', v: 'βολτ', mm: 'χιλιοστά', cm: 'εκατοστά', kg: 'κιλά' })[u.toLowerCase()]);
   s = s.replace(/\s*(?:›|»|→|\||–|—|\s-\s|\s\/\s)\s*/g, ' ⁞ '); // διαχωριστικά (Είδος › Κατηγορία › Τύπος) → παύση
   s = ttsClean(s.replace(/\n+/g, ' ¶ '));
   // παραστατικά: ΕΙΣ-00012 → «εισαγωγή 12» (χωρίς τα μηδενικά)
@@ -77,10 +78,10 @@ function ttsPrepare(t) {
     return (said ? ' ⟦' : ' κωδικός ⟦') + sayCode(m) + '⟧ ⏸ ';
   });
   // αριθμοί (και σειρές αριθμών «1, 2, 3») → αργό τμήμα, μαζί με τη μονάδα που ακολουθεί
-  s = s.replace(/(?<![\p{L}\d⟦.,])(\d+(?:[.,]\d+)*(?:[xXχΧ×]\d+(?:[.,]\d+)*)*(?:\s*(?:,|και|-|έως|ως|μέχρι)\s*\d+(?:[.,]\d+)*)*)(\s*(?:τεμάχια|τεμάχιο|φύλλα|φύλλο|μέτρα|μέτρο|τετραγωνικά μέτρα|κιλά|mm|cm|watt|W)(?![\p{L}\d]))?(?![^⟦]*⟧)/gu,
+  s = s.replace(/(?<![\p{L}\d⟦.,])(\d+(?:[.,]\d+)*(?:[xXχΧ×]\d+(?:[.,]\d+)*)*(?:\s*(?:,|και|-|έως|ως|μέχρι)\s*\d+(?:[.,]\d+)*)*)(\s*(?:τεμάχια|τεμάχιο|φύλλα|φύλλο|μέτρα|μέτρο|τετραγωνικά μέτρα|κιλά|μοίρες|βαθμούς Κελσίου|βατ|βολτ|κιλοβάτ|χιλιοστά|εκατοστά|mm|cm|watt|W)(?![\p{L}\d]))?(?![^⟦]*⟧)/gu,
     (m, n, u) => /\d[^\d]+\d/.test(n.replace(/[.,]\d/g, '')) && /(,|και|-|έως|ως|μέχρι)/.test(n)
       ? ' ⟦' + n + (u || '') + '⟧ '            // σειρά αριθμών → αργό τμήμα
-      : ' ˙ ' + n + (u || '') + ' ˙ ');        // μεμονωμένος αριθμός → μικρή παύση πριν και μετά
+      : ' ˙ ' + n + (u || '') + (u ? ' ' : ' ˙ '));   // μεμονωμένος αριθμός → παύση πριν· «25 μοίρες» μαζί
   s = sayLatin(s);
   return s.replace(/\s*¶\s*/g, ' ⏸ ').replace(/…/g, ' ⏸ ').replace(/(\s*⏸\s*)+/g, ' ⏸ ').replace(/\s+/g, ' ').replace(/^\s*⏸\s*|\s*⏸\s*$/g, '').trim();
 }
@@ -151,8 +152,11 @@ function unlockAudio() {
 function playUrl(url, rate) {
   return new Promise((res, rej) => { const el = VOICE.el; el.onended = () => res(); el.onerror = () => rej(new Error('audio'));
     el.preservesPitch = el.mozPreservesPitch = el.webkitPreservesPitch = true; // πιο αργά χωρίς «βαριά» φωνή
-    el.src = url; el.defaultPlaybackRate = rate || 1; el.playbackRate = rate || 1;
-    const p = el.play(); if (p && p.catch) p.catch(rej); });
+    const R = rate || 1; const fix = () => { if (Math.abs(el.playbackRate - R) > 0.01) el.playbackRate = R; el.defaultPlaybackRate = R; };
+    el.onloadedmetadata = fix; el.oncanplay = fix; el.onplaying = fix;
+    el.defaultPlaybackRate = R; el.src = url; el.defaultPlaybackRate = R; el.playbackRate = R;
+    el.load && el.load(); fix();
+    const p = el.play(); if (p && p.then) p.then(fix, rej); });
 }
 async function speakInner(text, my) {
   if (!VOICE.elOk) return deviceSpeak(text);
@@ -219,13 +223,13 @@ function toPcm16B64(f32, inRate) {
 }
 // Λεξιλόγιο για την αναγνώριση: ονόματα αποθηκών, γυμναστηρίων, οχημάτων, ειδών/κατηγοριών/τύπων και προϊόντων
 function sttKeyterms() {
-  const out = new Set(); const add = v => { v = String(v || '').replace(/\s+/g, ' ').trim(); if (v.length >= 2 && v.length <= 40) out.add(v); };
+  const out = new Set(); const add = v => { v = String(v || '').replace(/\s+/g, ' ').trim(); if (v.length >= 2 && v.length <= 30 && v.split(' ').length <= 4) out.add(v); };
+  ['γράψε', 'γράψε μου', 'σβήσε', 'δείξε', 'δείξε μου', 'βρες', 'φέρε', 'ψάξε', 'πόσα', 'πόσες', 'πόσοι', 'καταχώρισε', 'μετάφερε', 'φόρτωσε', 'άνοιξε', 'σημείωσε', 'μοίρες'].forEach(add);
   [S.wh, S.gym, S.veh].forEach(m => Object.values(m || {}).forEach(x => { if (x.active !== false) add(x.name); }));
   Object.values(S.cat || {}).forEach(c => { add(c.name); (c.subs || []).forEach(sb => { add(sb.name); (sb.types || []).forEach(t => add(t.name)); }); });
-  Object.values(S.prod || {}).filter(p => !p.deleted && p.active !== false).forEach(p => { add(p.name); if (p.code && /\d/.test(p.code) && !/\s/.test(p.code)) add(p.code); });
-  ['γράψε', 'γράψε μου', 'σβήσε', 'δείξε', 'δείξε μου', 'βρες', 'φέρε', 'ψάξε', 'πόσα', 'πόσες', 'πόσοι', 'καταχώρισε', 'μετάφερε', 'φόρτωσε', 'άνοιξε', 'σημείωσε', 'μοίρες'].forEach(add);
   ['παραλαβή', 'εισαγωγή', 'τοποθέτηση', 'εγκατάσταση', 'αντικατάσταση', 'απόσυρση', 'επιστροφή', 'μεταφορά', 'απογραφή', 'ρετάλι', 'ρετάλια', 'λαμαρίνα', 'λαμαρίνες', 'αμάξι', 'απόθεμα', 'τεμάχια'].forEach(add);
-  return [...out].slice(0, 75);
+  Object.values(S.prod || {}).filter(p => !p.deleted && p.active !== false).sort((a, b) => String(a.name).length - String(b.name).length).forEach(p => add(p.name));
+  return [...out];
 }
 function micCancel() { if (VOICE.recording) micStop(false, true); }
 ACT.mic = () => { if (VOICE.recording) micStop(false); else micStart(); };
@@ -239,9 +243,10 @@ async function micStart() {
   try { L.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
   catch (e) { VOICE.recording = false; VOICE.live = null; try { ctx && ctx.close(); } catch (x) {} renderAi(); return toast('Δεν δόθηκε πρόσβαση στο μικρόφωνο. Επιτρέψτε το από τις ρυθμίσεις του browser.', true); }
   if (L !== VOICE.live) { L.stream.getTracks().forEach(x => x.stop()); return; }
+  if (ctx) { try { L.src = ctx.createMediaStreamSource(L.stream); L.an = ctx.createAnalyser(); L.an.fftSize = 512; L.src.connect(L.an); waveLoop(L); } catch (e) {} }
   if (L.mode === 'live') {
     // ήχος → PCM 16kHz → WebSocket (μέχρι να ανοίξει, κρατιέται σε ουρά)
-    L.src = ctx.createMediaStreamSource(L.stream); L.proc = ctx.createScriptProcessor(4096, 1, 1);
+    L.proc = ctx.createScriptProcessor(4096, 1, 1);
     L.proc.onaudioprocess = e => {
       const b64 = toPcm16B64(e.inputBuffer.getChannelData(0), ctx.sampleRate);
       const m = { message_type: 'input_audio_chunk', audio_base_64: b64, commit: false, sample_rate: 16000 };
@@ -259,8 +264,9 @@ async function micStart() {
 // Ρυθμίσεις ζωντανής καταγραφής, από την πληρέστερη στην απλούστερη: αν το ElevenLabs δεν δεχτεί μία,
 // δοκιμάζεται η επόμενη (με νέο κλειδί μιας χρήσης) — και μόνο στο τέλος ηχογράφηση/μετατροπή.
 const STT_VARIANTS = [
-  q => q.append('secondary_languages', 'en'), // ελληνικά κυρίως + αγγλικά
-  q => {},                                     // μόνο ελληνικά
+  { en: true, kt: true },   // ελληνικά κυρίως + αγγλικά, με λεξιλόγιο καταλόγου
+  { en: false, kt: true },  // μόνο ελληνικά, με λεξιλόγιο
+  { en: false, kt: false }, // μόνο ελληνικά, χωρίς λεξιλόγιο
 ];
 async function connectLive(L, vi) {
   if (L !== VOICE.live || L.mode !== 'live') return;
@@ -273,10 +279,11 @@ async function connectLive(L, vi) {
     const k = await SB.fn('stt', { action: 'token' });
     if (L !== VOICE.live) return;
     const q = new URLSearchParams({ model_id: 'scribe_v2_realtime', token: k.token, audio_format: 'pcm_16000', commit_strategy: 'vad', language_code: k.language || 'el', no_verbatim: 'true' });
-    STT_VARIANTS[vi](q);
+    const V = STT_VARIANTS[vi]; if (V.en) q.append('secondary_languages', 'en');
     // ονόματα του καταλόγου ως λεξιλόγιο (όσο χωρά στη διεύθυνση)
-    let len = 0; for (const t of sttKeyterms()) { len += t.length + 12; if (len > 3000) break; q.append('keyterms', t); }
-    const ws = L.ws = new WebSocket('wss://api.elevenlabs.io/v1/speech-to-text/realtime?' + q);
+    const BASE = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime?'; let n = 0;
+    if (V.kt) for (const t of sttKeyterms()) { if (n >= 100) break; const add = 10 + encodeURIComponent(t).length; if ((BASE + q).length + add > 4500) continue; q.append('keyterms', t); n++; }
+    const ws = L.ws = new WebSocket(BASE + q);
       ws.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       const ty = m.message_type;
@@ -295,11 +302,35 @@ async function connectLive(L, vi) {
     ws.onclose = () => { L.open = false; L.waiters.splice(0).forEach(f => f()); };
   } catch (e) { liveFallback(L, e.message); }
 }
+// Κυματομορφή κάτω από το πεδίο: μπάρες που κυλούν προς τα αριστερά, με ύψος ανάλογο της έντασης
+function waveLoop(L) {
+  const buf = new Uint8Array(L.an.fftSize), hist = []; let last = 0;
+  const tick = t => {
+    if (VOICE.live !== L) return;
+    requestAnimationFrame(tick);
+    if (t - last < 45) return; last = t;                       // ~22 μπάρες το δευτερόλεπτο
+    L.an.getByteTimeDomainData(buf);
+    let sum = 0; for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+    hist.push(Math.min(1, Math.sqrt(sum / buf.length) * 4.5));
+    const c = document.getElementById('aiwave'); if (!c) return;
+    const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const bw = 3, gap = 2, n = Math.floor(w / (bw + gap)); while (hist.length > n) hist.shift();
+    g.fillStyle = getComputedStyle(c).color;
+    for (let i = 0; i < hist.length; i++) {
+      const bh = Math.max(2, hist[i] * (h - 4)), x = w - (hist.length - i) * (bw + gap);
+      g.globalAlpha = 0.35 + 0.65 * (i / hist.length); g.fillRect(x, (h - bh) / 2, bw, bh);
+    }
+    g.globalAlpha = 1;
+  };
+  requestAnimationFrame(tick);
+}
 // εναλλακτικά: ηχογράφηση και μετατροπή στο τέλος (αν δεν γίνεται ζωντανά)
 function liveFallback(L, why) {
   if (L.mode !== 'live' || VOICE.live !== L) return;
   console.warn('Ζωντανή καταγραφή μη διαθέσιμη:', why);
-  L.mode = 'batch'; try { L.proc && L.proc.disconnect(); L.src && L.src.disconnect(); } catch (e) {}
+  L.mode = 'batch'; try { L.proc && L.src && L.src.disconnect(L.proc); L.proc && L.proc.disconnect(); } catch (e) {}
   try { L.ws && L.ws.close(); } catch (e) {}
   toast('Μιλήστε· το κείμενο θα εμφανιστεί μόλις πατήσετε ξανά το μικρόφωνο.');
   batchStart(L);
