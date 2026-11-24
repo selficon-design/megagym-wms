@@ -15,11 +15,16 @@ function ttsStop() {
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
 }
 // Ταχύτητα ομιλίας: μένει στη συσκευή. 0,8 = αργά · 0,9 = κανονικά (προεπιλογή) · 1,05 = γρήγορα
-const SPEEDS = [[0.75, 'Πολύ αργά'], [0.85, 'Αργά'], [0.95, 'Κανονικά'], [1.08, 'Γρήγορα']];
-TTS.speed = (() => { try { const v = parseFloat(localStorage.getItem('mg-tts-speed')); return v >= 0.7 && v <= 1.2 ? v : 0.85; } catch (e) { return 0.85; } })();
-function setTtsSpeed(v) { TTS.speed = Math.min(1.2, Math.max(0.7, v)); try { localStorage.setItem('mg-tts-speed', String(TTS.speed)); } catch (e) {} if (AI.open) renderAi(); return TTS.speed; }
+// Ταχύτητα = συνολικός ρυθμός (1 = κανονικός της φωνής). Το ElevenLabs δέχεται 0,7–1,2· για πιο αργά,
+// ο ήχος παίζει και πιο αργά στη συσκευή (χωρίς αλλαγή χροιάς).
+const SPEEDS = [[0.5, 'Πολύ αργά'], [0.6, 'Αργά'], [0.75, 'Κανονικά'], [0.95, 'Γρήγορα']];
+TTS.speed = (() => { try { const v = parseFloat(localStorage.getItem('mg-tts-speed3')); return v >= 0.5 && v <= 1.2 ? v : 0.6; } catch (e) { return 0.6; } })();
+function setTtsSpeed(v) { TTS.speed = Math.min(1.2, Math.max(0.45, v)); try { localStorage.setItem('mg-tts-speed3', String(TTS.speed)); } catch (e) {} if (AI.open) { const b = $('[data-act=ttsSpeed]'); if (b) b.textContent = 'Ταχύτητα: ' + speedLabel(); } return TTS.speed; }
+const apiSpeed = e => Math.min(1.2, Math.max(0.7, e));            // ό,τι στέλνεται στο ElevenLabs
+const playRate = e => Math.max(0.7, Math.min(1, e / apiSpeed(e))); // επιπλέον επιβράδυνση στη συσκευή
 const speedLabel = () => (SPEEDS.reduce((b, s) => Math.abs(s[0] - TTS.speed) < Math.abs(b[0] - TTS.speed) ? s : b))[1];
-ACT.ttsSpeed = () => { const i = SPEEDS.findIndex(s => Math.abs(s[0] - TTS.speed) < 0.03); const n = SPEEDS[(i + 1) % SPEEDS.length]; setTtsSpeed(n[0]); toast('Ταχύτητα φωνής: ' + n[1]); if (TTS.on) ttsSpeak('Έτσι θα μιλάω. Κωδικός ΜG-00125.'); };
+ACT.ttsSpeed = () => { const i = SPEEDS.findIndex(s => Math.abs(s[0] - TTS.speed) < 0.03); const n = SPEEDS[(i + 1) % SPEEDS.length]; setTtsSpeed(n[0]);
+  ttsSpeak('Έτσι θα μιλάω. ' + n[1] + '. Κωδικός ZS-C2, σαράντα πέντε τεμάχια.'); }; // δείγμα με τη νέα ταχύτητα (πάντα, αφού το ζήτησε ο χρήστης)
 // Κείμενο για ομιλία: οι κωδικοί διαβάζονται χαρακτήρα-χαρακτήρα με παύσεις, οι λίστες με παύση ανάμεσα
 // Κωδικός για ομιλία: τα γράμματα ένα-ένα, οι αριθμοί ως αριθμοί (π.χ. MG-00125 → «M G 125», AR111 → «A R 111»)
 function sayCode(c) {
@@ -81,7 +86,8 @@ function segments(chunk) {
   return out.filter(x => /[\p{L}\d]/u.test(x.text));
 }
 async function elFetch(text, prev, next, slow, first) {
-  const speed = slow ? Math.max(0.7, (TTS.speed || 0.85) - 0.15) : TTS.speed; // νούμερα/κωδικοί: πιο αργά
+  const eff = slow ? Math.max(0.45, (TTS.speed || 0.6) * 0.85) : (TTS.speed || 0.6); // νούμερα/κωδικοί: 15% πιο αργά
+  const speed = apiSpeed(eff); VOICE.rates = VOICE.rates || {}; VOICE.rates[text] = playRate(eff);
   const body = (first ? '<break time="0.35s" /> ' : '') + elText(text, slow); // σιωπή μόνο στην αρχή της ανάγνωσης (iPhone)
   const r = await SB.fn('tts', { text: body, speed, previous_text: String(prev || '').replace(/⏸/g, ','), next_text: String(next || '').replace(/⏸/g, ',') }, { raw: true }); return URL.createObjectURL(await r.blob()); }
 // Ακρόαση: μόλις ανοίξει, όλες οι απαντήσεις διαβάζονται μέχρι να πατηθεί «Κλείσιμο ακρόασης» (μένει αποθηκευμένη)
@@ -115,8 +121,11 @@ function unlockAudio() {
   const p = el.play(); if (p && p.then) p.then(() => { VOICE.unlocked = true; }).catch(() => {});
 }
 ['touchend', 'pointerup', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
-function playUrl(url) {
-  return new Promise((res, rej) => { const el = VOICE.el; el.onended = () => res(); el.onerror = () => rej(new Error('audio')); el.src = url; const p = el.play(); if (p && p.catch) p.catch(rej); });
+function playUrl(url, rate) {
+  return new Promise((res, rej) => { const el = VOICE.el; el.onended = () => res(); el.onerror = () => rej(new Error('audio'));
+    el.preservesPitch = el.mozPreservesPitch = el.webkitPreservesPitch = true; // πιο αργά χωρίς «βαριά» φωνή
+    el.src = url; el.defaultPlaybackRate = rate || 1; el.playbackRate = rate || 1;
+    const p = el.play(); if (p && p.catch) p.catch(rej); });
 }
 async function speakInner(text, my) {
   if (!VOICE.elOk) return deviceSpeak(text);
@@ -130,7 +139,7 @@ async function speakInner(text, my) {
       const url = await pend[i]; if (my !== VOICE.seq) { URL.revokeObjectURL(url); pend.slice(i + 1).forEach(p => p && p.then(u => URL.revokeObjectURL(u), () => {})); return; }
       ensure(i + 3);
       VOICE.url = url; VOICE.audio = VOICE.el;
-      await playUrl(url);
+      await playUrl(url, (VOICE.rates || {})[segs[i].text] || 1);
       URL.revokeObjectURL(url); VOICE.url = null; if (my !== VOICE.seq) return;
     }
   } catch (e) {

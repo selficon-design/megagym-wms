@@ -29,7 +29,8 @@
   --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.35); color-scheme:dark}
 :root[data-theme="light"]{color-scheme:light}
 *{box-sizing:border-box}
-html,body{height:100%}
+html,body{height:100%;max-width:100%;overflow-x:hidden;overscroll-behavior-x:none}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--f-body);-webkit-tap-highlight-color:transparent}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--bar)}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -399,4 +400,8 @@ tfoot td{font-weight:600;background:var(--surface2)}
 .aivoice .vbtn{flex:1 1 auto;min-height:36px;padding:6px 10px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);font:600 .78rem var(--f-body);cursor:pointer;white-space:nowrap}
 .aivoice .vbtn.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .aivoice .vbtn:disabled{opacity:.45;cursor:default}
+
+/* iPhone: πεδία ≥16px ώστε να μη γίνεται zoom (και «φύγει» η οθόνη) όταν πατάτε για να γράψετε */
+@media (max-width:900px){input,select,textarea,.aiform textarea{font-size:16px !important}}
+#app,main,.main{max-width:100vw;overflow-x:clip}
 </style>
