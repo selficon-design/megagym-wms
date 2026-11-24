@@ -17,18 +17,18 @@ function ttsStop() {
 // Ταχύτητα ομιλίας: μένει στη συσκευή. 0,8 = αργά · 0,9 = κανονικά (προεπιλογή) · 1,05 = γρήγορα
 // Ταχύτητα = συνολικός ρυθμός (1 = κανονικός της φωνής). Το ElevenLabs δέχεται 0,7–1,2· για πιο αργά,
 // ο ήχος παίζει και πιο αργά στη συσκευή (χωρίς αλλαγή χροιάς).
-const SPEEDS = [[0.5, 'Πολύ αργά'], [0.6, 'Αργά'], [0.75, 'Κανονικά'], [0.95, 'Γρήγορα']];
-TTS.speed = (() => { try { const v = parseFloat(localStorage.getItem('mg-tts-speed3')); return v >= 0.5 && v <= 1.2 ? v : 0.6; } catch (e) { return 0.6; } })();
-function setTtsSpeed(v) { TTS.speed = Math.min(1.2, Math.max(0.45, v)); try { localStorage.setItem('mg-tts-speed3', String(TTS.speed)); } catch (e) {} if (AI.open) { const b = $('[data-act=ttsSpeed]'); if (b) b.textContent = 'Ταχύτητα: ' + speedLabel(); } return TTS.speed; }
+const SPEEDS = [[0.7, 'Πολύ αργά'], [0.78, 'Αργά'], [0.88, 'Κανονικά'], [1.0, 'Γρήγορα']]; // μόνο ταχύτητα ElevenLabs (σταθερή)
+TTS.speed = (() => { try { const v = parseFloat(localStorage.getItem('mg-tts-speed4')); return v >= 0.7 && v <= 1.2 ? v : 0.78; } catch (e) { return 0.78; } })();
+function setTtsSpeed(v) { TTS.speed = Math.min(1.0, Math.max(0.7, v)); try { localStorage.setItem('mg-tts-speed4', String(TTS.speed)); } catch (e) {} if (AI.open) { const b = $('[data-act=ttsSpeed]'); if (b) b.textContent = 'Ταχύτητα: ' + speedLabel(); } return TTS.speed; }
 const apiSpeed = e => Math.min(1.2, Math.max(0.7, e));            // ό,τι στέλνεται στο ElevenLabs
-const playRate = e => Math.max(0.7, Math.min(1, e / apiSpeed(e))); // επιπλέον επιβράδυνση στη συσκευή
+const playRate = e => 1; // χωρίς επιβράδυνση στη συσκευή (στο iPhone έκανε την αρχή γρήγορη και θόλωνε τη φωνή) // επιπλέον επιβράδυνση στη συσκευή
 const speedLabel = () => (SPEEDS.reduce((b, s) => Math.abs(s[0] - TTS.speed) < Math.abs(b[0] - TTS.speed) ? s : b))[1];
 ACT.ttsSpeed = () => { const i = SPEEDS.findIndex(s => Math.abs(s[0] - TTS.speed) < 0.03); const n = SPEEDS[(i + 1) % SPEEDS.length]; setTtsSpeed(n[0]); applyRateNow(); };
 // η ανάγνωση που ήδη παίζει συνεχίζει από το ίδιο σημείο με τη νέα ταχύτητα
 function applyRateNow() { const el = VOICE.el, c = VOICE.cur; if (!el || !c || !VOICE.playing) return; const r = rateFor(c); el.playbackRate = r; el.defaultPlaybackRate = r; }
-const effFor = slow => slow ? Math.max(0.45, (TTS.speed || 0.6) * 0.85) : (TTS.speed || 0.6); // νούμερα/κωδικοί: 15% πιο αργά
+const effFor = slow => TTS.speed || 0.78; // νούμερα/κωδικοί: 15% πιο αργά
 // ρυθμός αναπαραγωγής = επιθυμητή ταχύτητα / ταχύτητα με την οποία έφτιαξε τον ήχο το ElevenLabs
-const rateFor = c => Math.max(0.5, Math.min(2, effFor(c.slow) / (c.api || 1)));
+const rateFor = c => 1;
 // Κείμενο για ομιλία: οι κωδικοί διαβάζονται χαρακτήρα-χαρακτήρα με παύσεις, οι λίστες με παύση ανάμεσα
 // Κωδικός για ομιλία: τα γράμματα ένα-ένα, οι αριθμοί ως αριθμοί (π.χ. MG-00125 → «M G 125», AR111 → «A R 111»)
 // ελληνική προφορά λατινικών γραμμάτων (η ελληνική φωνή δεν ξέρει να τα λέει μεμονωμένα, π.χ. «W»)
@@ -96,14 +96,24 @@ function ttsPrepare(t) {
     const said = /κωδικ\p{L}*\s*:?\s*$/iu.test(str.slice(Math.max(0, off - 14), off)); // ήδη γράφει «κωδικός»
     return (said ? ' ⟦' : ' κωδικός ⟦') + sayCode(m) + '⟧ ⏸ ';
   });
+  // άλλοι κωδικοί με γράμματα ΚΑΙ αριθμούς (π.χ. ZSC2, AB-12): γράμμα-γράμμα, ο αριθμός ολόκληρος
+  s = s.replace(/(?<![\p{L}\d⟦])(?=[A-Za-z0-9-]*\d)(?=[A-Za-z0-9-]*[A-Za-z])[A-Za-z0-9]{2,}(?:-[A-Za-z0-9]+)*(?![\p{L}\d])/gu, m => m.length <= 14 ? ' ⟦' + sayCode(m) + '⟧ ' : m);
+  // δεκαδικά: 1.5 / 1,5 → «1 κόμμα 5» (όχι οι χιλιάδες 1.250)
+  s = s.replace(/(?<![\d.,])(\d+)[.,](\d{1,2})(?![\d]|[.,]\d)/g, '$1 κόμμα $2');
+  // κενό ανάμεσα σε γράμματα και αριθμό (π.χ. τύπος «DKP 2 επί 1000») → παύση με κόμμα
+  s = s.replace(/([A-Za-z⟧])\s+(?=\d)/g, '$1, ').replace(/(\d)\s+(?=[A-Za-z]{2})/g, '$1, ').replace(/(\d)\s+(?=\d)/g, '$1, ');
+  s = s.replace(/\s+επί\s+/g, ', επί ');
+  // μεγάλοι αριθμοί με μικρή παύση: 781 → «700, 81», 1250 → «1000, 250» (οι διψήφιοι, π.χ. 15, μένουν ενωμένοι· όχι μέσα σε κωδικούς)
+  s = s.split(/(⟦[^⟧]*⟧)/).map(part => part.startsWith('⟦') ? part : part.replace(/(?<![\d.,])(\d{3,4})(?![\d]|[.,]\d)/g, m => {
+    const n = +m; if (/^0/.test(m)) return m;
+    const big = n >= 1000 ? Math.floor(n / 1000) * 1000 : Math.floor(n / 100) * 100, rest = n - big;
+    return rest ? big + ', ' + rest : m; })).join('');
   // αριθμοί (και σειρές αριθμών «1, 2, 3») → αργό τμήμα, μαζί με τη μονάδα που ακολουθεί
   s = s.replace(/(?<![\p{L}\d⟦.,])(\d+(?:[.,]\d+)*(?:[xXχΧ×]\d+(?:[.,]\d+)*)*(?:\s*(?:,|και|-|έως|ως|μέχρι)\s*\d+(?:[.,]\d+)*)*)(\s*(?:τεμάχια|τεμάχιο|φύλλα|φύλλο|μέτρα|μέτρο|τετραγωνικά μέτρα|κιλά|μοίρες|βαθμούς Κελσίου|βατ|βολτ|κιλοβάτ|χιλιοστά|εκατοστά|mm|cm|watt|W)(?![\p{L}\d]))?(?![^⟦]*⟧)/gu,
     (m, n, u) => /\d[^\d]+\d/.test(n.replace(/[.,]\d/g, '')) && /(,|και|-|έως|ως|μέχρι)/.test(n)
       ? ' ⟦' + n + (u || '') + '⟧ '            // σειρά αριθμών → αργό τμήμα
       : ' ˙ ' + n + (u || '') + (u ? ' ' : ' ˙ '));   // μεμονωμένος αριθμός → παύση πριν· «25 μοίρες» μαζί
   s = sayLatin(s);
-  s = s.replace(/(?<![\d.,]|[\p{L}])(\d{1,3}(?:\.\d{3})+|\d+)(?![\d]|[.,]\d|\p{L})/gu, m => {
-    const n = parseInt(m.replace(/\./g, ''), 10); return n >= 21 && n <= 999999 && !/^0\d/.test(m) ? sayNumber(n) : m; });
   return s.replace(/\s*¶\s*/g, ' ⏸ ').replace(/…/g, ' ⏸ ').replace(/(\s*⏸\s*)+/g, ' ⏸ ').replace(/\s+/g, ' ').replace(/^\s*⏸\s*|\s*⏸\s*$/g, '').trim();
 }
 // Το κείμενο σπάει σε κομμάτια ώστε η ανάγνωση να ξεκινά γρήγορα
@@ -114,11 +124,11 @@ function ttsChunks(t) {
   return out.map(c => c.replace(/^[\s⏸.,;]+/, '').trim()).filter(Boolean).slice(0, 8);
 }
 // για ElevenLabs: πραγματικές παύσεις· στα αριθμητικά τμήματα παύση και ανάμεσα στους αριθμούς
-const elText = (c, slow) => { let t = c.replace(/⟦([^⟧]*)⟧/g, (m, x) => ' <break time="0.25s" /> ' + x.replace(/\s*,\s*/g, ' <break time="0.6s" /> ') + ' <break time="0.25s" /> '); // νούμερα/γράμματα κωδικών: παύση ανάμεσα
-  t = t.replace(/\s*⏸\s*/g, ' <break time="0.8s" /> ').replace(/\s*⁞\s*/g, ' <break time="0.6s" /> ').replace(/\s*˙\s*/g, ' <break time="0.25s" /> ').replace(/\s*‧\s*/g, ' <break time="0.15s" /> ');
-  if (slow) t = t.replace(/\s*,\s*/g, ' <break time="0.6s" /> ');
-  t = t.replace(/(?:\s*<break time="([\d.]+)s" \/>\s*){2,}/g, m => { const v = Math.max(...[...m.matchAll(/([\d.]+)s/g)].map(x => +x[1])); return ' <break time="' + v + 's" /> '; });
-  return t.replace(/^\s*<break[^>]*>\s*|\s*<break[^>]*>\s*$/g, '').replace(/\s+([.,;:!?)])/g, '$1').trim(); };
+const elText = (c, slow) => {
+  // Σημεία στίξης αντί για εντολές παύσης: τα πολλά <break> κάνουν τη φωνή του ElevenLabs ασταθή (επιταχύνει, «μασάει»)
+  let t = c.replace(/⟦([^⟧]*)⟧/g, '$1')            // κωδικοί: «ζεντ, ες, σι, 2» — τα κόμματα δίνουν φυσική παύση
+    .replace(/\s*⏸\s*/g, '. ').replace(/\s*⁞\s*/g, ', ').replace(/\s*[˙‧]\s*/g, ' ');
+  return t.replace(/\s+([.,;:!?)])/g, '$1').replace(/([.,])(?:\s*[.,])+/g, '$1').replace(/\s+/g, ' ').trim(); };
 // ένα κομμάτι → τμήματα: { text, slow } — τα ⟦…⟧ (νούμερα, κωδικοί) διαβάζονται πιο αργά
 function segments(chunk) {
   // ΣΤΑΘΕΡΗ ταχύτητα: όλο το κομμάτι σε μία αίτηση (τα ⟦…⟧ μένουν για τις παύσεις στο elText)

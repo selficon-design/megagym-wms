@@ -20,7 +20,7 @@ function ttsSpeak(text) {
     speechSynthesis.cancel();
     const prep = (typeof ttsPrepare === 'function' ? ttsPrepare(text) : ttsClean(text)).replace(/\s*⏸\s*/g, '. ').replace(/[⟦⟧]/g, '').replace(/\s*˙\s*/g, ' ').replace(/\s*⁞\s*/g, ', ').replace(/\s*‧\s*/g, ' ');
     const chunks = prep.match(/[^.!;…\n]{1,220}[.!;…]?/g) || [];
-    chunks.forEach(c => { const u = new SpeechSynthesisUtterance(c); u.lang = 'el-GR'; if (TTS.voice || ttsPickVoice()) u.voice = TTS.voice; u.rate = Math.max(0.5, TTS.speed || 0.6); speechSynthesis.speak(u); });
+    chunks.forEach(c => { const u = new SpeechSynthesisUtterance(c); u.lang = 'el-GR'; if (TTS.voice || ttsPickVoice()) u.voice = TTS.voice; u.rate = Math.max(0.7, TTS.speed || 0.78); speechSynthesis.speak(u); });
   } catch (e) { toast('Η ανάγνωση δεν είναι διαθέσιμη σε αυτή τη συσκευή.', true); }
 }
 ACT.ttsToggle = () => {
@@ -179,7 +179,7 @@ function placementInfo(id, detail) {
 const AI_TOOLS = [
   { name: 'set_voice_speed', description: 'Αλλάζει μόνιμα την ταχύτητα της φωνής που διαβάζει τις απαντήσεις. Κάλεσέ το όταν ο χρήστης ζητά να μιλάς πιο αργά, πιο σιγά (εννοώντας ρυθμό), πιο γρήγορα ή κανονικά. change: slower | faster | slowest | normal.',
     inputSchema: { type: 'object', properties: { change: { type: 'string', enum: ['slower', 'faster', 'slowest', 'normal'] } }, required: ['change'] },
-    execute: ({ change }) => { const cur = TTS.speed || 0.6; const v = change === 'slowest' ? 0.5 : change === 'normal' ? 0.75 : change === 'faster' ? cur + 0.1 : cur - 0.1;
+    execute: ({ change }) => { const cur = TTS.speed || 0.78; const v = change === 'slowest' ? 0.7 : change === 'normal' ? 0.88 : change === 'faster' ? cur + 0.08 : cur - 0.08;
       const n = setTtsSpeed(v); return { ok: true, speed: Math.round(n * 100) / 100, label: speedLabel(), note: 'Η νέα ταχύτητα ισχύει από αυτή την απάντηση και μένει αποθηκευμένη σε αυτή τη συσκευή.' }; } },
   { name: 'get_manual', description: 'Οδηγός χρήσης της εφαρμογής. Κάλεσέ το για ΚΑΘΕ ερώτηση «πώς κάνω…», «πού βρίσκω…», «τι σημαίνει…» ή «τι δικαίωμα χρειάζομαι…». Επιστρέφει τις πιο σχετικές ενότητες με τα ακριβή βήματα και ονόματα κουμπιών/μενού. query: λέξεις-κλειδιά στα ελληνικά.',
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
