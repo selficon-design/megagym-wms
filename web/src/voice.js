@@ -59,6 +59,25 @@ function codeRegex() {
   _codeRe = codes.length ? new RegExp('(?<![\\p{L}\\d])(' + [...new Set(codes)].sort((a, b) => b.length - a.length).map(esc).join('|') + ')(?![\\p{L}\\d])', 'giu') : null;
   return _codeRe;
 }
+// Αριθμοί σε λέξεις, ανά θέση, με μικρή παύση (‧): 781 → «επτακόσια ‧ ογδόντα ‧ ένα»
+const GN = { ones: ['', 'ένα', 'δύο', 'τρία', 'τέσσερα', 'πέντε', 'έξι', 'επτά', 'οκτώ', 'εννιά'],
+  teens: ['δέκα', 'έντεκα', 'δώδεκα', 'δεκατρία', 'δεκατέσσερα', 'δεκαπέντε', 'δεκαέξι', 'δεκαεπτά', 'δεκαοκτώ', 'δεκαεννιά'],
+  tens: ['', '', 'είκοσι', 'τριάντα', 'σαράντα', 'πενήντα', 'εξήντα', 'εβδομήντα', 'ογδόντα', 'ενενήντα'],
+  hund: ['', 'εκατό', 'διακόσια', 'τριακόσια', 'τετρακόσια', 'πεντακόσια', 'εξακόσια', 'επτακόσια', 'οκτακόσια', 'εννιακόσια'] };
+function upTo999(n) {
+  const h = Math.floor(n / 100), r = n % 100, t = Math.floor(r / 10), o = r % 10, out = [];
+  if (h) out.push(h === 1 && r ? 'εκατόν' : GN.hund[h]);
+  if (r >= 10 && r < 20) out.push(GN.teens[r - 10]); else { if (t) out.push(GN.tens[t]); if (o) out.push(GN.ones[o]); }
+  return out;
+}
+function sayNumber(n) {
+  if (!(n >= 0) || n > 999999) return String(n);
+  if (n === 0) return 'μηδέν';
+  const th = Math.floor(n / 1000), rest = n % 1000, out = [];
+  if (th === 1) out.push('χίλια'); else if (th) out.push(upTo999(th).map(w => w.replace(/^(δεκα)?τρία$/, '$1τρείς').replace(/^τρείς$/, 'τρεις').replace(/^(δεκα)?τέσσερα$/, '$1τέσσερις').replace(/^ένα$/, 'μία').replace(/σια$/, 'σιες')).join(' ') + ' χιλιάδες'); // θηλυκό: «τρεις/διακόσιες χιλιάδες»
+  out.push(...upTo999(rest));
+  return out.join(' ‧ ');
+}
 function ttsPrepare(t) {
   let s = String(t || '');
   s = s.replace(/^\s*(\d+)[.)]\s+/gm, '\n$1, '); // αριθμημένη λίστα: «1. Λάμπα» → «1, Λάμπα» (ο αριθμός διαβάζεται)
@@ -83,6 +102,8 @@ function ttsPrepare(t) {
       ? ' ⟦' + n + (u || '') + '⟧ '            // σειρά αριθμών → αργό τμήμα
       : ' ˙ ' + n + (u || '') + (u ? ' ' : ' ˙ '));   // μεμονωμένος αριθμός → παύση πριν· «25 μοίρες» μαζί
   s = sayLatin(s);
+  s = s.replace(/(?<![\d.,]|[\p{L}])(\d{1,3}(?:\.\d{3})+|\d+)(?![\d]|[.,]\d|\p{L})/gu, m => {
+    const n = parseInt(m.replace(/\./g, ''), 10); return n >= 21 && n <= 999999 && !/^0\d/.test(m) ? sayNumber(n) : m; });
   return s.replace(/\s*¶\s*/g, ' ⏸ ').replace(/…/g, ' ⏸ ').replace(/(\s*⏸\s*)+/g, ' ⏸ ').replace(/\s+/g, ' ').replace(/^\s*⏸\s*|\s*⏸\s*$/g, '').trim();
 }
 // Το κείμενο σπάει σε κομμάτια ώστε η ανάγνωση να ξεκινά γρήγορα
@@ -94,7 +115,7 @@ function ttsChunks(t) {
 }
 // για ElevenLabs: πραγματικές παύσεις· στα αριθμητικά τμήματα παύση και ανάμεσα στους αριθμούς
 const elText = (c, slow) => { let t = c.replace(/⟦([^⟧]*)⟧/g, (m, x) => ' <break time="0.25s" /> ' + x.replace(/\s*,\s*/g, ' <break time="0.6s" /> ') + ' <break time="0.25s" /> '); // νούμερα/γράμματα κωδικών: παύση ανάμεσα
-  t = t.replace(/\s*⏸\s*/g, ' <break time="0.8s" /> ').replace(/\s*⁞\s*/g, ' <break time="0.6s" /> ').replace(/\s*˙\s*/g, ' <break time="0.25s" /> ');
+  t = t.replace(/\s*⏸\s*/g, ' <break time="0.8s" /> ').replace(/\s*⁞\s*/g, ' <break time="0.6s" /> ').replace(/\s*˙\s*/g, ' <break time="0.25s" /> ').replace(/\s*‧\s*/g, ' <break time="0.15s" /> ');
   if (slow) t = t.replace(/\s*,\s*/g, ' <break time="0.6s" /> ');
   t = t.replace(/(?:\s*<break time="([\d.]+)s" \/>\s*){2,}/g, m => { const v = Math.max(...[...m.matchAll(/([\d.]+)s/g)].map(x => +x[1])); return ' <break time="' + v + 's" /> '; });
   return t.replace(/^\s*<break[^>]*>\s*|\s*<break[^>]*>\s*$/g, '').replace(/\s+([.,;:!?)])/g, '$1').trim(); };
