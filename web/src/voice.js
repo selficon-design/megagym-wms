@@ -10,7 +10,7 @@ TTS.ok = true;
 
 function ttsStop() {
   VOICE.seq++;
-  try { if (VOICE.audio) { VOICE.audio.pause(); VOICE.audio = null; } } catch (e) {}
+  try { if (VOICE.audio) { const a = VOICE.audio; a.pause(); VOICE.audio = null; if (a.onended) { const f = a.onended; a.onended = null; f(); } } } catch (e) {}
   if (VOICE.url) { URL.revokeObjectURL(VOICE.url); VOICE.url = null; }
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
 }
@@ -76,6 +76,21 @@ ttsSpeak = async function (text) {
   ttsStop(); const my = VOICE.seq; setPlaying(true);
   try { await speakInner(text, my); } finally { if (my === VOICE.seq) setPlaying(false); }
 };
+// ---- iPhone/Safari: ήχος επιτρέπεται μόνο μετά από πάτημα. Ένα κοινό «κανάλι» ήχου ξεκλειδώνεται με το
+// πρώτο πάτημα (σιωπή 0,1") και μετά χρησιμοποιείται για όλες τις απαντήσεις, χωρίς νέο πάτημα.
+const SILENT_WAV = (() => { const n = 800, b = new Uint8Array(44 + n), v = new DataView(b.buffer); const w = (o, t) => [...t].forEach((c, i) => b[o + i] = c.charCodeAt(0));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true); b.fill(128, 44);
+  let s = ''; b.forEach(x => s += String.fromCharCode(x)); return 'data:audio/wav;base64,' + btoa(s); })();
+VOICE.el = new Audio(); VOICE.el.setAttribute('playsinline', ''); VOICE.el.preload = 'auto';
+function unlockAudio() {
+  if (VOICE.unlocked || VOICE.playing) return;
+  const el = VOICE.el; el.muted = false; el.src = SILENT_WAV;
+  const p = el.play(); if (p && p.then) p.then(() => { VOICE.unlocked = true; }).catch(() => {});
+}
+['touchend', 'pointerup', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
+function playUrl(url) {
+  return new Promise((res, rej) => { const el = VOICE.el; el.onended = () => res(); el.onerror = () => rej(new Error('audio')); el.src = url; const p = el.play(); if (p && p.catch) p.catch(rej); });
+}
 async function speakInner(text, my) {
   if (!VOICE.elOk) return deviceSpeak(text);
   const chunks = ttsChunks(text); if (!chunks.length) return;
@@ -84,15 +99,15 @@ async function speakInner(text, my) {
     for (let i = 0; i < chunks.length; i++) {
       const url = await next; if (my !== VOICE.seq) { URL.revokeObjectURL(url); return; }
       if (i + 1 < chunks.length) next = elFetch(chunks[i + 1], chunks[i], chunks[i + 2]);
-      VOICE.url = url; VOICE.audio = new Audio(url);
-      await new Promise((res, rej) => { VOICE.audio.onended = res; VOICE.audio.onerror = rej; VOICE.audio.play().catch(rej); });
+      VOICE.url = url; VOICE.audio = VOICE.el;
+      await playUrl(url);
       URL.revokeObjectURL(url); VOICE.url = null; if (my !== VOICE.seq) return;
     }
   } catch (e) {
     if (my !== VOICE.seq) return;
     if (e && e.status === 503) VOICE.elOk = false; // δεν έχει ρυθμιστεί → φωνή συσκευής
     else if (e && e.status && !VOICE.warned) { VOICE.warned = true; toast(e.message + ' — χρησιμοποιείται η φωνή της συσκευής.', true); }
-    if (e && e.name === 'NotAllowedError') return toast('Πατήστε «Επανάληψη απάντησης» για να την ακούσετε.', true);
+    if (e && e.name === 'NotAllowedError') { VOICE.unlocked = false; return toast('Ο ήχος μπλοκαρίστηκε από τη συσκευή. Πατήστε «Επανάληψη ακρόασης».', true); }
     deviceSpeak(text);
   }
 }
