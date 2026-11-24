@@ -57,8 +57,14 @@ function ttsChunks(t) {
   if (cur.trim()) out.push(cur.trim()); return out.slice(0, 8);
 }
 async function elFetch(text, prev, next) { const r = await SB.fn('tts', { text, speed: TTS.speed, previous_text: prev || '', next_text: next || '' }, { raw: true }); return URL.createObjectURL(await r.blob()); }
+function setPlaying(v) { if (VOICE.playing === v) return; VOICE.playing = v; const b = $('#aireplay'); if (b) b.outerHTML = replayBtnHtml(); }
+function replayBtnHtml() { return `<button type="button" class="btn sm ghost" id="aireplay" data-act="ttsReplay">${VOICE.playing ? '⏹ Διακοπή ανάγνωσης' : '↻ Επανάληψη απάντησης'}</button>`; }
+const _ttsStop = ttsStop; ttsStop = function () { _ttsStop(); setPlaying(false); };
 ttsSpeak = async function (text) {
-  ttsStop(); const my = VOICE.seq;
+  ttsStop(); const my = VOICE.seq; setPlaying(true);
+  try { await speakInner(text, my); } finally { if (my === VOICE.seq) setPlaying(false); }
+};
+async function speakInner(text, my) {
   if (!VOICE.elOk) return deviceSpeak(text);
   const chunks = ttsChunks(text); if (!chunks.length) return;
   try {
@@ -74,19 +80,24 @@ ttsSpeak = async function (text) {
     if (my !== VOICE.seq) return;
     if (e && e.status === 503) VOICE.elOk = false; // δεν έχει ρυθμιστεί → φωνή συσκευής
     else if (e && e.status && !VOICE.warned) { VOICE.warned = true; toast(e.message + ' — χρησιμοποιείται η φωνή της συσκευής.', true); }
-    if (e && e.name === 'NotAllowedError') return toast('Πατήστε «Ακρόαση» για να ακούσετε την απάντηση.', true);
+    if (e && e.name === 'NotAllowedError') return toast('Πατήστε «Επανάληψη απάντησης» για να την ακούσετε.', true);
     deviceSpeak(text);
   }
-};
-ACT.ttsToggle = () => {
-  TTS.on = !TTS.on; try { localStorage.setItem('mg-tts', TTS.on ? '1' : '0'); } catch (e) {}
-  if (TTS.on) ttsSpeak('Η φωνή ενεργοποιήθηκε.'); else ttsStop();
-  renderAi();
+}
+// «Επανάληψη απάντησης» / «Διακοπή ανάγνωσης»: ένα κουμπί κάτω από την τελευταία απάντηση
+ACT.ttsReplay = () => {
+  if (VOICE.playing) { ttsStop(); return; }
+  const last = [...AI.items].reverse().find(x => x.k === 'a' && x.text); if (last) ttsSpeak(last.text);
 };
 const _closeAi = ACT.closeAi; ACT.closeAi = () => { ttsStop(); micCancel(); _closeAi(); };
 
-/* ---------- μικρόφωνο ---------- */
-const MIC_OK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+/* ---------- μικρόφωνο: ζωντανή καταγραφή ----------
+   Πατάτε το μικρόφωνο → μιλάτε → τα λόγια γράφονται ζωντανά στο πεδίο (μπορείτε να τα διορθώσετε)
+   → πατάτε το βελάκι → στέλνονται και η απάντηση διαβάζεται αυτόματα.
+   Ζωντανά: ElevenLabs Scribe v2 Realtime (WebSocket, κλειδί μιας χρήσης από τον server).
+   Αν η ζωντανή καταγραφή δεν είναι διαθέσιμη: ηχογράφηση και μετατροπή στο τέλος. */
+const AC = window.AudioContext || window.webkitAudioContext;
+const MIC_OK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (AC || window.MediaRecorder));
 function micBtnHtml(disabled) {
   if (!MIC_OK) return '';
   const st = VOICE.recording ? 'rec' : VOICE.busy ? 'busy' : '';
@@ -94,32 +105,109 @@ function micBtnHtml(disabled) {
   return `<button type="button" class="btn mic ${st}" data-act="mic" aria-label="${label}" title="${label}" ${disabled || VOICE.busy || AI.busy ? 'disabled' : ''}>
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">${VOICE.recording ? '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>' : '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'}</svg></button>`;
 }
-function micCancel() { if (VOICE.rec && VOICE.recording) { VOICE.cancelled = true; try { VOICE.rec.stop(); } catch (e) {} } }
-ACT.mic = async () => {
-  if (VOICE.recording) { try { VOICE.rec.stop(); } catch (e) {} return; }
+const joinTxt = (...a) => a.map(x => String(x || '').trim()).filter(Boolean).join(' ');
+function liveShow() {
+  const L = VOICE.live; if (!L) return;
+  AI.draft = joinTxt(L.base, L.committed, L.partial);
+  const t = $('#aiin'); if (t) { t.value = AI.draft; t.scrollTop = t.scrollHeight; }
+}
+function toPcm16B64(f32, inRate) {
+  const ratio = inRate / 16000, n = Math.floor(f32.length / ratio), out = new Int16Array(n);
+  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, f32[Math.floor(i * ratio)] || 0)); out[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+  const u8 = new Uint8Array(out.buffer); let bin = '';
+  for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function micCancel() { if (VOICE.recording) micStop(false, true); }
+ACT.mic = () => { if (VOICE.recording) micStop(false); else micStart(); };
+async function micStart() {
   ttsStop();
-  let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-  catch (e) { return toast('Δεν δόθηκε πρόσβαση στο μικρόφωνο. Επιτρέψτε το από τις ρυθμίσεις του browser.', true); }
-  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
-  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-  VOICE.rec = rec; VOICE.chunks = []; VOICE.recording = true; VOICE.cancelled = false; VOICE.t0 = Date.now();
-  rec.ondataavailable = e => { if (e.data && e.data.size) VOICE.chunks.push(e.data); };
-  const auto = setTimeout(() => { if (VOICE.recording) try { rec.stop(); } catch (e) {} }, 60000); // έως 1 λεπτό
-  rec.onstop = async () => {
-    clearTimeout(auto); stream.getTracks().forEach(t => t.stop()); VOICE.recording = false;
-    if (VOICE.cancelled || Date.now() - VOICE.t0 < 600) { renderAi(); return; }
-    const type = rec.mimeType || mime || 'audio/webm';
-    const blob = new Blob(VOICE.chunks, { type }); const ext = /mp4/.test(type) ? 'm4a' : /ogg/.test(type) ? 'ogg' : 'webm';
-    VOICE.busy = true; renderAi();
+  const t = $('#aiin'); const base = t ? t.value : (AI.draft || '');
+  // το AudioContext δημιουργείται μέσα στο πάτημα (απαραίτητο στο iPhone)
+  let ctx = null; try { if (AC) { ctx = new AC(); ctx.resume && ctx.resume(); } } catch (e) { ctx = null; }
+  const L = VOICE.live = { base, committed: '', partial: '', ctx, queue: [], ws: null, open: false, mode: ctx ? 'live' : 'batch', waiters: [] };
+  VOICE.recording = true; VOICE.fromMic = true; renderAi();
+  try { L.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  catch (e) { VOICE.recording = false; VOICE.live = null; try { ctx && ctx.close(); } catch (x) {} renderAi(); return toast('Δεν δόθηκε πρόσβαση στο μικρόφωνο. Επιτρέψτε το από τις ρυθμίσεις του browser.', true); }
+  if (L !== VOICE.live) { L.stream.getTracks().forEach(x => x.stop()); return; }
+  if (L.mode === 'live') {
+    // ήχος → PCM 16kHz → WebSocket (μέχρι να ανοίξει, κρατιέται σε ουρά)
+    L.src = ctx.createMediaStreamSource(L.stream); L.proc = ctx.createScriptProcessor(4096, 1, 1);
+    L.proc.onaudioprocess = e => {
+      const b64 = toPcm16B64(e.inputBuffer.getChannelData(0), ctx.sampleRate);
+      const msg = JSON.stringify({ message_type: 'input_audio_chunk', audio_base_64: b64, commit: false, sample_rate: 16000 });
+      if (L.open && L.ws && L.ws.readyState === 1) L.ws.send(msg); else if (L.queue.length < 400) L.queue.push(msg);
+    };
+    L.src.connect(L.proc); L.proc.connect(ctx.destination);
     try {
-      const fd = new FormData(); fd.append('file', blob, 'speech.' + ext);
-      const r = await SB.fn('stt', fd); const text = (r.text || '').trim();
-      VOICE.busy = false;
-      if (!text) { renderAi(); return toast('Δεν ακούστηκε κάτι. Δοκιμάστε ξανά.', true); }
-      if (!TTS.on) { TTS.on = true; try { localStorage.setItem('mg-tts', '1'); } catch (e) {} } // μιλήσατε → απαντά με φωνή
-      aiSend(text);
-    } catch (e) { VOICE.busy = false; renderAi(); toast(e.message || 'Η αναγνώριση φωνής απέτυχε.', true); }
-  };
-  rec.start(); renderAi();
-};
+      const k = await SB.fn('stt', { action: 'token' });
+      if (L !== VOICE.live) return;
+      const q = new URLSearchParams({ model_id: 'scribe_v2_realtime', token: k.token, audio_format: 'pcm_16000', commit_strategy: 'vad', language_code: k.language || 'el' });
+      const ws = L.ws = new WebSocket('wss://api.elevenlabs.io/v1/speech-to-text/realtime?' + q);
+      ws.onmessage = ev => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        const ty = m.message_type;
+        if (ty === 'session_started') { L.open = true; while (L.queue.length) ws.send(L.queue.shift()); }
+        else if (ty === 'partial_transcript') { L.partial = m.text || ''; liveShow(); }
+        else if (ty === 'committed_transcript' || ty === 'committed_transcript_with_timestamps') { L.committed = joinTxt(L.committed, m.text); L.partial = ''; liveShow(); L.waiters.splice(0).forEach(f => f()); }
+        else if (m.error || /error|exceeded|limit|invalid/.test(ty || '')) { console.warn('stt', m); if (!L.open) liveFallback(L, m.error || ty); }
+      };
+      ws.onerror = () => { if (!L.open) liveFallback(L, 'σύνδεση'); };
+      ws.onclose = () => { L.open = false; L.waiters.splice(0).forEach(f => f()); };
+    } catch (e) { liveFallback(L, e.message); }
+  }
+  if (L.mode === 'batch') batchStart(L);
+  L.timer = setTimeout(() => { if (VOICE.live === L) micStop(false); }, 120000); // έως 2 λεπτά
+}
+// εναλλακτικά: ηχογράφηση και μετατροπή στο τέλος (αν δεν γίνεται ζωντανά)
+function liveFallback(L, why) {
+  if (L.mode !== 'live' || VOICE.live !== L) return;
+  console.warn('Ζωντανή καταγραφή μη διαθέσιμη:', why);
+  L.mode = 'batch'; try { L.proc && L.proc.disconnect(); L.src && L.src.disconnect(); } catch (e) {}
+  try { L.ws && L.ws.close(); } catch (e) {}
+  toast('Μιλήστε· το κείμενο θα εμφανιστεί μόλις πατήσετε ξανά το μικρόφωνο.');
+  batchStart(L);
+}
+function batchStart(L) {
+  if (!window.MediaRecorder) return;
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
+  L.mime = mime; L.chunks = []; L.rec = new MediaRecorder(L.stream, mime ? { mimeType: mime } : undefined);
+  L.rec.ondataavailable = e => { if (e.data && e.data.size) L.chunks.push(e.data); };
+  L.rec.start(); L.t0 = Date.now();
+}
+async function micStop(sendAfter, cancel) {
+  const L = VOICE.live; if (!L) return;
+  clearTimeout(L.timer); VOICE.recording = false;
+  try { L.proc && L.proc.disconnect(); L.src && L.src.disconnect(); } catch (e) {}
+  if (L.mode === 'live' && !cancel) {
+    // τελευταίο κομμάτι + «κλείσιμο» φράσης· περιμένουμε λίγο το τελικό κείμενο
+    if (L.ws && L.ws.readyState === 1 && L.open) {
+      VOICE.busy = true; renderAi(); liveShow();
+      const done = new Promise(res => { L.waiters.push(res); setTimeout(res, 1800); });
+      try { L.ws.send(JSON.stringify({ message_type: 'input_audio_chunk', audio_base_64: toPcm16B64(new Float32Array(1600), 16000), commit: true, sample_rate: 16000 })); } catch (e) {}
+      if (L.partial || !L.committed) await done;
+      if (L.partial) { L.committed = joinTxt(L.committed, L.partial); L.partial = ''; }
+    }
+    try { L.ws && L.ws.close(); } catch (e) {}
+  }
+  if (L.mode === 'batch' && L.rec && !cancel) {
+    const stopped = new Promise(res => { L.rec.onstop = res; }); try { L.rec.stop(); } catch (e) {}
+    await stopped;
+    if (Date.now() - L.t0 > 600 && L.chunks.length) {
+      VOICE.busy = true; renderAi();
+      try {
+        const type = L.rec.mimeType || L.mime || 'audio/webm'; const ext = /mp4/.test(type) ? 'm4a' : /ogg/.test(type) ? 'ogg' : 'webm';
+        const fd = new FormData(); fd.append('file', new Blob(L.chunks, { type }), 'speech.' + ext);
+        const r = await SB.fn('stt', fd); L.committed = joinTxt(L.committed, r.text);
+      } catch (e) { toast(e.message || 'Η αναγνώριση φωνής απέτυχε.', true); }
+    }
+  }
+  try { L.stream && L.stream.getTracks().forEach(x => x.stop()); } catch (e) {}
+  try { L.ctx && L.ctx.close(); } catch (e) {}
+  VOICE.busy = false; VOICE.live = null;
+  if (cancel) { VOICE.fromMic = false; renderAi(); return; }
+  AI.draft = joinTxt(L.base, L.committed);
+  if (!L.committed && !sendAfter) { renderAi(); toast('Δεν ακούστηκε κάτι. Δοκιμάστε ξανά.', true); return; }
+  if (sendAfter) { const txt = AI.draft; AI.draft = ''; aiSend(txt); }
+  else { renderAi(); const t = $('#aiin'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+}

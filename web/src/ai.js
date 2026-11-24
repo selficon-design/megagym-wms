@@ -30,7 +30,7 @@ ACT.ttsToggle = () => {
   if (TTS.on && !(TTS.voice || ttsPickVoice())) toast('Δεν βρέθηκε ελληνική φωνή στη συσκευή· θα χρησιμοποιηθεί η προεπιλεγμένη.', true);
   renderAi();
 };
-ACT.ttsSay = el => { const it = AI.items[Number(el.dataset.i)]; if (it && it.text) ttsSpeak(it.text); };
+ACT.ttsSayOld = el => { const it = AI.items[Number(el.dataset.i)]; if (it && it.text) ttsSpeak(it.text); };
 ACT.closeAiTts = () => {};
 const AI = { open: false, items: [], turns: [], busy: false, ctl: null, props: {} };
 
@@ -55,20 +55,23 @@ function renderAi() {
   const box = $('#ai'); box.hidden = !AI.open; if (!AI.open) return;
   const unavailable = !sampleCap;
   box.innerHTML = `<div class="aipanel" role="dialog" aria-label="MEGA GYM AI"><div class="aihead"><span class="brand"><span class="mk">AI</span></span><b>MEGA GYM AI</b>
-    ${TTS.ok ? `<button data-act="ttsToggle" aria-pressed="${TTS.on}" title="Ανάγνωση απαντήσεων" style="${TTS.on ? 'background:var(--accent);color:#111;border-color:var(--accent)' : ''}">${TTS.on ? 'Φωνή: ON' : 'Φωνή: OFF'}</button>${TTS.on && typeof speedLabel === 'function' ? `<button data-act="ttsSpeed" title="Ταχύτητα φωνής — πατήστε για αλλαγή">Ταχύτητα: ${speedLabel()}</button>` : ''}` : ''}<button data-act="clearAi">Νέα συζήτηση</button><button data-act="closeAi" aria-label="Κλείσιμο">✕</button></div>
+    ${typeof speedLabel === 'function' ? `<button data-act="ttsSpeed" title="Ταχύτητα φωνής — πατήστε για αλλαγή">Ταχύτητα: ${speedLabel()}</button>` : ''}<button data-act="clearAi">Νέα συζήτηση</button><button data-act="closeAi" aria-label="Κλείσιμο">✕</button></div>
     <div class="aimsgs" id="aimsgs">${unavailable ? `<div class="warnbox">Ο AI Assistant δεν είναι διαθέσιμος αυτή τη στιγμή. Ελέγξτε τη σύνδεση και ανοίξτε ξανά την εφαρμογή.</div>` :
       (AI.items.length ? AI.items.map(aiItemHtml).join('') : `<div class="msg a">Γεια σας. Ρωτήστε με πώς γίνεται οποιαδήποτε εργασία στην εφαρμογή, ή για προϊόντα, αποθέματα, παραλαβές, τοποθετήσεις και σημειώσεις, ή δώστε μου εντολή να ετοιμάσω μια κίνηση. Κάθε ενέργεια εκτελείται μόνο αφού την επιβεβαιώσετε.</div>
         <div class="suggest">${AI_SUGGEST.map(s => `<button data-act="aiSuggest">${esc(s)}</button>`).join('')}</div>`)}</div>
-    <form class="aiform" id="aiform"><textarea id="aiin" placeholder="Γράψτε ή μιλήστε…" aria-label="Μήνυμα" ${unavailable ? 'disabled' : ''}></textarea>${micBtnHtml(unavailable)}
-      ${AI.busy ? `<button type="button" class="btn" data-act="aiStop">Διακοπή</button>` : `<button class="btn pri" ${unavailable ? 'disabled' : ''}>Αποστολή</button>`}</form></div>`;
-  $('#aiform').onsubmit = e => { e.preventDefault(); aiSend($('#aiin').value); };
-  $('#aiin').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); aiSend($('#aiin').value); } };
+    <form class="aiform${typeof VOICE !== 'undefined' && VOICE.recording ? ' listening' : ''}" id="aiform"><textarea id="aiin" placeholder="${typeof VOICE !== 'undefined' && VOICE.recording ? 'Μιλήστε… τα λόγια σας γράφονται εδώ' : 'Γράψτε ή πατήστε το μικρόφωνο…'}" aria-label="Μήνυμα" ${unavailable ? 'disabled' : ''}>${esc(AI.draft || '')}</textarea>${micBtnHtml(unavailable)}
+      ${AI.busy ? `<button type="button" class="btn" data-act="aiStop">Διακοπή</button>` : `<button class="btn pri send" aria-label="Αποστολή" title="Αποστολή" ${unavailable ? 'disabled' : ''}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>`}</form></div>`;
+  const submit = () => { if (typeof VOICE !== 'undefined' && VOICE.recording) micStop(true); else { const v = $('#aiin').value; AI.draft = ''; aiSend(v); } };
+  $('#aiform').onsubmit = e => { e.preventDefault(); submit(); };
+  $('#aiin').oninput = e => { AI.draft = e.target.value; };
+  $('#aiin').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } };
   fillPhotos(box);
   const m = $('#aimsgs'); m.scrollTop = m.scrollHeight;
 }
 function aiItemHtml(it) {
   if (it.k === 'u') return `<div class="msg u">${esc(it.text)}</div>`;
-  if (it.k === 'a') return `<div class="msg a">${mdLite(it.text || 'Σκέφτομαι…')}${TTS.ok && it.text && !AI.busy ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="ttsSay" data-i="${AI.items.indexOf(it)}">Ακρόαση</button></div>` : ''}</div>`;
+  if (it.k === 'a') { const last = it === [...AI.items].reverse().find(x => x.k === 'a' && x.text);
+    return `<div class="msg a">${mdLite(it.text || 'Σκέφτομαι…')}${typeof replayBtnHtml === 'function' && last && it.text && !AI.busy ? `<div style="margin-top:6px">${replayBtnHtml()}</div>` : ''}</div>`; }
   if (it.k === 't') return `<div class="msg t">${esc(it.text)}</div>`;
   if (it.k === 'err') return `<div class="errbox">${esc(it.text)}</div>`;
   if (it.k === 'cards') return `<div class="pcards">${it.ids.filter(p => S.prod[p]).map(p => `<div class="pcard" data-act="aiGo" data-v="prod" data-a="${p}"><div class="ph2" ${S.prod[p].photo ? `data-ph="${p}"` : ''}>${S.prod[p].photo ? '' : '<span class="small">Χωρίς φωτο</span>'}</div><div class="t"><b>${esc(prodName(p))}</b><div class="mono muted">${esc(prodCode(p))}</div></div></div>`).join('')}</div>`;
@@ -517,7 +520,7 @@ function aiRules() {
 6. Καταστάσεις αποθέματος: Κανονικό, Μεταχειρισμένο, Κατεστραμμένο, Προς έλεγχο. «ΔΙΑΘΕΣΙΜΑ ΠΡΟΣ ΧΡΗΣΗ» = ΜΟΝΟ τα κανονικά (καλή κατάσταση) σε αποθήκες, αποθήκες γυμναστηρίων και τα καινούργια στα οχήματα — αυτό εννοεί ο χρήστης όταν ρωτά «πόσα έχουμε». Τα παλιά (μεταχειρισμένα, κατεστραμμένα, προς έλεγχο, παλιά στο αμάξι) και τα εγκατεστημένα σε γυμναστήρια ΔΕΝ είναι προς χρήση· ανέφερέ τα χωριστά μόνο αν ζητηθούν ή αν βοηθούν.
 7. Μην αθροίζεις διαφορετικές μονάδες μέτρησης. Ανέφερε πάντα μονάδα.
 8. Οι αριθμοί παραστατικών: ΜΓΥ μεταφορά από γυμναστήριο, ΕΠΞ επεξεργασία υλικού, ΜΡΤ μεταφορά ρεταλιών, ΕΙΣ εισαγωγή, ΠΑΡ παραλαβή, ΤΟΠ τοποθέτηση, ΕΠΓ επιστροφή από γυμναστήριο, ΕΠΑ επιστροφή σε αποθήκη, ΜΑΓ σε αποθήκη γυμναστηρίου, ΜΕΤ μεταφορά, ΜΟΧ μεταφορά σε άλλο όχημα, ΚΑΤ αλλαγή κατάστασης, ΑΠΣ απόσυρση, ΑΠΓ απογραφή. Ο χρήστης μπορεί να γράψει «00087» ή «87».
-8β. ΦΩΝΗ: αν ο χρήστης ζητήσει να μιλάς πιο αργά/σιγά (ρυθμό) ή πιο γρήγορα, κάλεσε set_voice_speed — η αλλαγή μένει μόνιμη· μην προσπαθείς να «γράψεις πιο αργά». ${TTS && TTS.on ? 'Η φωνή είναι ΑΝΟΙΧΤΗ: γράφε σύντομες προτάσεις, ένα προϊόν ανά γραμμή, και τους κωδικούς χωριστά από το όνομα (η εφαρμογή τους διαβάζει γράμμα-γράμμα). Απόφευγε μεγάλους πίνακες· για πολλά αποτελέσματα πες τα 5 πρώτα και ρώτα αν θέλει τα υπόλοιπα.' : ''}
+8β. ΦΩΝΗ: αν ο χρήστης ζητήσει να μιλάς πιο αργά/σιγά (ρυθμό) ή πιο γρήγορα, κάλεσε set_voice_speed — η αλλαγή μένει μόνιμη· μην προσπαθείς να «γράψεις πιο αργά». ${AI.speak ? 'Ο χρήστης ΜΙΛΗΣΕ και η απάντηση θα ΔΙΑΒΑΣΤΕΙ: γράφε σύντομες προτάσεις, ένα προϊόν ανά γραμμή, και τους κωδικούς χωριστά από το όνομα. Απόφευγε μεγάλους πίνακες· για πολλά αποτελέσματα πες τα 5 πρώτα και ρώτα αν θέλει τα υπόλοιπα.' : ''}
 9. Μπορείς να ανοίξεις οθόνες με open_screen (και screen=replacements για στατιστική με γραφήματα).
 10. Για ερωτήσεις χρήσης της εφαρμογής («πώς κάνω…», «πού είναι…») κάλεσε ΠΡΩΤΑ get_manual και απάντησε με αριθμημένα βήματα, χρησιμοποιώντας ακριβώς τα ονόματα μενού και κουμπιών του οδηγού. Μην επινοείς κουμπιά ή οθόνες.
 11. ΕΙΣΑΓΩΓΗ ΣΕ ΓΥΜΝΑΣΤΗΡΙΟ γίνεται με τρεις τρόπους: από αμάξι (place), από αποθήκη γυμναστηρίου (install), κατευθείαν από προμηθευτή (supply_to_gym). Μεταφορά εγκατεστημένων σε άλλο γυμναστήριο ή αποθήκη: move_from_gym — ρώτα αν είναι σε καλή κατάσταση ή μεταχειρισμένα.
@@ -529,6 +532,8 @@ function aiRules() {
 
 async function aiSend(text) {
   text = String(text || '').trim(); if (!text || AI.busy || !sampleCap) return;
+  // ερώτηση από το μικρόφωνο → η απάντηση διαβάζεται αυτόματα
+  AI.speak = typeof VOICE !== 'undefined' && !!VOICE.fromMic; if (typeof VOICE !== 'undefined') VOICE.fromMic = false;
   AI.items.push({ k: 'u', text }); AI.turns.push({ role: 'user', content: text });
   const ans = { k: 'a', text: '' }; AI.items.push(ans);
   AI.busy = true; AI.ctl = new AbortController(); renderAi();
@@ -541,7 +546,7 @@ async function aiSend(text) {
   try {
     const r = await sampleCap(turns, { system: aiRules(), tools, signal: AI.ctl.signal, onText: ({ text: t }) => { ans.text = t; const els = $$('#aimsgs .msg.a'); if (els.length) els[els.length - 1].innerHTML = mdLite(t); } });
     ans.text = r.text; AI.turns.push({ role: 'assistant', content: r.text });
-    if (TTS.on) ttsSpeak(r.text);
+    if (AI.speak && r.text) ttsSpeak(r.text);
   } catch (e) {
     if (e.text) ans.text = e.text;
     const msg = { cancelled: '', not_granted: 'Δεν δόθηκε άδεια χρήσης του Claude για αυτή την εφαρμογή.', rate_limited: 'Πολλά αιτήματα ή όριο χρήσης. Δοκιμάστε ξανά σε λίγο.', tools_unavailable: 'Αυτή η προβολή δεν υποστηρίζει τα εργαλεία του βοηθού.', sampling_disabled: 'Το Claude δεν είναι διαθέσιμο για αυτόν τον λογαριασμό.', session_expired: 'Η σύνδεση έληξε. Συνδεθείτε ξανά.', server: e.message }[e.code];

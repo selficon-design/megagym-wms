@@ -11,6 +11,15 @@ function elReason(j) {
 }
 Deno.serve(handler(async req => {
   const key = Deno.env.get('ELEVENLABS_API_KEY'); if (!key) return fail('Δεν έχει ρυθμιστεί το ElevenLabs.', 503);
+  // Ζωντανή καταγραφή: κλειδί μιας χρήσης (15') για σύνδεση της εφαρμογής απευθείας με το ElevenLabs — το μόνιμο κλειδί μένει εδώ
+  if ((req.headers.get('content-type') || '').includes('application/json')) {
+    const b = await req.json().catch(() => ({}));
+    if (b.action !== 'token') return fail('Άγνωστη ενέργεια.');
+    const r = await fetch('https://api.elevenlabs.io/v1/single-use-token/realtime_scribe?max_session_duration_seconds=180', { method: 'POST', headers: { 'xi-api-key': key } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.token) return fail('Η ζωντανή καταγραφή δεν είναι διαθέσιμη (ElevenLabs ' + r.status + ')' + elReason(j), 502);
+    return json({ token: j.token, language: Deno.env.get('ELEVENLABS_STT_LANGUAGE') || 'el' });
+  }
   const inForm = await req.formData(); const file = inForm.get('file');
   if (!file || typeof file === 'string') return fail('Δεν στάλθηκε ήχος.');
   if (file.size > 15 * 1024 * 1024) return fail('Πολύ μεγάλη ηχογράφηση.');

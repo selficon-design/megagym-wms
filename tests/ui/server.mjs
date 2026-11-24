@@ -99,7 +99,7 @@ async function handle(req, res) {
         return J(res, next);
       }
       if (name === 'tts') return J(res, { error: 'Δεν έχει ρυθμιστεί το ElevenLabs.' }, 503);
-      if (name === 'stt') { await body(req); return J(res, { text: 'Πόσα προϊόντα έχουμε;' }); }
+      if (name === 'stt') { const b = await body(req); if ((req.headers['content-type'] || '').includes('json')) { if (process.env.NO_LIVE) return J(res, { error: 'Η ζωντανή καταγραφή δεν είναι διαθέσιμη.' }, 502); return J(res, { token: 'tok-live', language: 'el' }); } return J(res, { text: 'Πόσα προϊόντα έχουμε;' }); }
       return J(res, { error: 'unknown' }, 404);
     }
     // στατικά αρχεία

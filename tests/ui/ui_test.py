@@ -95,11 +95,13 @@ with sync_playwright() as pw:
     ok(A.evaluate('VOICE.elOk') is False, 'ElevenLabs μη ρυθμισμένο → φωνή συσκευής (χωρίς σφάλμα)')
     post('/__ai_script', [{'content': [{'type': 'text', 'text': 'Έχουμε πολλά προϊόντα.'}], 'stop_reason': 'end_turn'}])
     A.click('[data-act=mic]'); A.wait_for_timeout(1500)
-    ok(A.evaluate('VOICE.recording'), 'ηχογράφηση ξεκίνησε')
+    ok(A.evaluate('VOICE.recording'), 'ηχογράφηση ξεκίνησε (εδώ χωρίς ζωντανή σύνδεση → εναλλακτικός τρόπος)')
     A.click('[data-act=mic]')
+    A.wait_for_function("document.querySelector('#aiin') && document.querySelector('#aiin').value.includes('Πόσα προϊόντα έχουμε;')", timeout=10000)
+    ok(True, 'ομιλία → κείμενο στο πεδίο (δεν στέλνεται μόνο του)')
+    A.click('button.send')
     A.wait_for_function("AI.items.some(i => i.k === 'u' && i.text === 'Πόσα προϊόντα έχουμε;') && !AI.busy", timeout=10000)
-    ok(True, 'ομιλία → κείμενο → στάλθηκε στον βοηθό')
-    ok(A.evaluate('TTS.on'), 'απάντηση με φωνή ενεργή μετά από φωνητική ερώτηση')
+    ok(AI_OK := A.evaluate("AI.speak") is True, 'βελάκι → στάλθηκε, και η απάντηση διαβάζεται αυτόματα')
     A.evaluate("ACT.closeAi()")
 
     print('7. Χρήστες')
@@ -131,7 +133,7 @@ with sync_playwright() as pw:
     A.click('#who'); A.click('[data-act=logout]'); A.wait_for_selector('#authf', timeout=8000); ok(True, 'επιστροφή στη σύνδεση')
     b.close()
 
-errs = [e for e in errors if 'favicon' not in e and 'ERR_' not in e and 'Failed to load resource' not in e]
+errs = [e for e in errors if 'favicon' not in e and 'ERR_' not in e and 'Failed to load resource' not in e and 'api.elevenlabs.io' not in e]  # εδώ δεν υπάρχει πρόσβαση στο ElevenLabs
 print('\nΣφάλματα σελίδας:', '\n'.join(errs) if errs else 'κανένα')
 print('ΑΠΟΤΕΛΕΣΜΑ:', 'ΟΛΑ ΟΚ' if not fails and not errs else '%d αποτυχίες' % len(fails))
 sys.exit(1 if fails or errs else 0)
