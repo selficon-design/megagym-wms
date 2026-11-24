@@ -165,6 +165,7 @@ async function execute(op) {
     let r;
     try { r = await SB.fn('execute', { op }); }
     catch (e) { if (e.status === 401) throw new ENG.StockError('Η σύνδεση έληξε. Συνδεθείτε ξανά.'); throw new ENG.StockError(e.message || 'Η καταχώριση απέτυχε.'); }
+    if (r.changed) SB.apply(r.changed); // η οθόνη ενημερώνεται αμέσως με ό,τι γράφτηκε
     return r.mov;
   } finally { setBusy(null); }
 }

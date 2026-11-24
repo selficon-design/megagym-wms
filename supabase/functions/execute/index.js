@@ -5,5 +5,5 @@ import { runOp, resetTests } from '../_shared/ops.js';
 Deno.serve(handler(async (req, user) => {
   const body = await req.json();
   if (body && body.action === 'reset') return json(await resetTests(db(), user.id, !!body.withNotes));
-  return json({ mov: await runOp(db(), user.id, body && body.op) });
+  return json(await runOp(db(), user.id, body && body.op)); // { mov, changed }
 }));

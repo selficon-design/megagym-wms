@@ -74,9 +74,9 @@ async function handle(req, res) {
         const t0 = (await sql`select clock_timestamp()::text as ts`)[0].ts;
         try {
           if (b.action === 'reset') { const r = await resetTests(sql, uid, !!b.withNotes); push({ ev: 'RESYNC' }); return J(res, r); }
-          const mov = await runOp(sql, uid, b.op);
-          (await changedSince(t0)).forEach(x => push({ ev: 'UPSERT', row: x }));
-          return J(res, { mov });
+          const out = await runOp(sql, uid, b.op);
+          if (!process.env.NO_RT) (await changedSince(t0)).filter(x => !process.env.RT_ONLY_MOV || x.path.startsWith('mov/')).forEach(x => push({ ev: 'UPSERT', row: x }));
+          return J(res, out);
         } catch (e) { return J(res, { error: e.message }, e.status || 500); }
       }
       if (name === 'admin') {

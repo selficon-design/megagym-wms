@@ -66,7 +66,11 @@ export async function runOp(sql, uid, op) {
     for (const [path, data] of Object.entries(r.docs)) await putDoc(tx, path, data);
     const mov = Object.assign({}, r.mov, { state: 'ok' });
     await putDoc(tx, 'mov/' + op.id, mov);
-    return Object.assign({ id: op.id }, mov);
+    // ό,τι γράφτηκε επιστρέφεται, ώστε η οθόνη να ενημερώνεται αμέσως (χωρίς να περιμένει τη ζωντανή ενημέρωση)
+    const changed = { ['mov/' + op.id]: mov };
+    for (const [p, b] of Object.entries(r.newBal)) changed['bal/' + p] = b;
+    for (const [path, data] of Object.entries(r.docs)) changed[path] = data;
+    return { mov: Object.assign({ id: op.id }, mov), changed };
   });
 }
 

@@ -51,12 +51,34 @@ const SB = (() => {
     for (const coll of Object.keys(colls)) { try { colls[coll].map = await fetchAll(coll); emit(coll); } catch (e) { console.warn('resync', coll, e); } }
     if (movQ) { try { movQ.map = await fetchMov(movQ.limit); emitMov(); } catch (e) { console.warn('resync mov', e); } }
   }
+  // εφαρμογή εγγράφων που επέστρεψε ο server (δικές μας κινήσεις) — άμεση ενημέρωση οθόνης
+  function apply(changed) {
+    const touched = new Set(); let movT = false;
+    for (const [path, data] of Object.entries(changed || {})) {
+      const [coll, id] = splitPath(path);
+      if (coll === 'mov' && movQ) { movQ.map[id] = data; movT = true; }
+      const c = colls[coll]; if (c) { c.map[id] = data; touched.add(coll); }
+    }
+    touched.forEach(emit); if (movT) emitMov();
+  }
+  // μερικός συγχρονισμός αποθέματος (αν χαθούν μηνύματα της ζωντανής ενημέρωσης, π.χ. σε μεγάλη κίνηση άλλου χρήστη)
+  let rsT = null;
+  const STOCK = ['bal', 'pk', 'pl', 'rem', 'cfg', 'inv'];
+  function resyncStockSoon() {
+    clearTimeout(rsT);
+    rsT = setTimeout(async () => {
+      for (const coll of STOCK) if (colls[coll]) { try { colls[coll].map = await fetchAll(coll); emit(coll); } catch (e) { console.warn('resync', coll, e); } }
+      if (movQ) { try { movQ.map = await fetchMov(movQ.limit); emitMov(); } catch (e) {} }
+    }, 1200);
+  }
   let channel = null, wasDown = false;
   function startRealtime() {
     if (channel) return;
     channel = client.channel('docs-all').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, p => {
-      const row = p.eventType === 'DELETE' ? p.old : p.new; if (!row || !row.path) return;
+      const row = p.eventType === 'DELETE' ? p.old : p.new;
+      if (!row || !row.path || (p.errors && p.errors.length)) { resyncStockSoon(); return; } // ελλιπές μήνυμα (π.χ. πολύ μεγάλο) → φέρνουμε ό,τι άλλαξε
       const [coll, id] = splitPath(row.path);
+      if (coll === 'mov' && p.eventType !== 'DELETE') resyncStockSoon(); // νέα κίνηση: εξασφάλιση ότι ήρθαν όλα τα υπόλοιπα
       if (coll === 'mov' && movQ) { if (p.eventType === 'DELETE') delete movQ.map[id]; else movQ.map[id] = row.data; emitMov(); }
       const c = colls[coll]; if (!c) return;
       if (p.eventType === 'DELETE') delete c.map[id]; else c.map[id] = row.data;
@@ -66,6 +88,14 @@ const SB = (() => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') wasDown = true;
     });
   }
+  // δίχτυ ασφαλείας: κάθε 45" (όσο η εφαρμογή είναι ανοιχτή) ελέγχουμε αν υπάρχει νεότερη κίνηση από όσες ξέρουμε
+  setInterval(async () => {
+    if (!session || !movQ || document.visibilityState !== 'visible') return;
+    try {
+      const { data } = await client.from('docs').select('id').eq('coll', 'mov').order('data->no', { ascending: false }).limit(1);
+      if (data && data[0] && !movQ.map[data[0].id]) resyncStockSoon();
+    } catch (e) {}
+  }, 45000);
   // όταν το κινητό «ξυπνά», φέρνουμε ό,τι άλλαξε στο μεταξύ
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && session) resync(); });
 
@@ -155,5 +185,5 @@ const SB = (() => {
   // ίδιος τρόπος πρόσβασης με τη δοκιμαστική (claude.use)
   window.claude = { use: async name => ({ db: session ? DB : null, user: session ? USER : null, sample: session ? SAMPLE : null, downloads: DOWNLOADS })[name] || null };
 
-  return { client, cfg, fn, get session() { return session; }, set session(s) { session = s; }, resync, DB };
+  return { client, cfg, fn, get session() { return session; }, set session(s) { session = s; }, resync, apply, DB };
 })();
