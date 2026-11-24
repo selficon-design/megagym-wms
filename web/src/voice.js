@@ -37,7 +37,8 @@ function codeRegex() {
 }
 function ttsPrepare(t) {
   let s = String(t || '');
-  s = s.replace(/^\s*(?:[-•*]|\d+[.)])\s+/gm, '\n'); // κουκκίδες λίστας → νέα γραμμή (παύση)
+  s = s.replace(/^\s*(\d+)[.)]\s+/gm, '\n$1, '); // αριθμημένη λίστα: «1. Λάμπα» → «1, Λάμπα» (ο αριθμός διαβάζεται)
+  s = s.replace(/^\s*[-•*]\s+/gm, '\n'); // κουκκίδες → νέα γραμμή (παύση)
   s = ttsClean(s.replace(/\n+/g, ' ¶ '));
   // παραστατικά: ΕΙΣ-00012 → «εισαγωγή 12» (χωρίς τα μηδενικά)
   const DOC = { ΕΙΣ: 'εισαγωγή', ΠΑΡ: 'παραλαβή', ΤΟΠ: 'τοποθέτηση', ΕΠΓ: 'επιστροφή από γυμναστήριο', ΕΠΑ: 'επιστροφή σε αποθήκη', ΜΑΓ: 'μεταφορά σε αποθήκη γυμναστηρίου', ΜΕΤ: 'μεταφορά', ΜΟΧ: 'μεταφορά οχήματος', ΜΓΥ: 'μεταφορά από γυμναστήριο', ΕΠΞ: 'επεξεργασία', ΜΡΤ: 'μεταφορά ρεταλιών', ΚΑΤ: 'αλλαγή κατάστασης', ΑΠΣ: 'απόσυρση', ΑΠΓ: 'απογραφή' };
@@ -46,17 +47,20 @@ function ttsPrepare(t) {
   const re = codeRegex();
   if (re) s = s.replace(re, (m, _g, off, str) => {
     const said = /κωδικ\p{L}*\s*:?\s*$/iu.test(str.slice(Math.max(0, off - 14), off)); // ήδη γράφει «κωδικός»
-    return (said ? ' ' : ' κωδικός ') + sayCode(m) + ' … ';
+    return (said ? ' ' : ' κωδικός ') + sayCode(m) + ' ⏸ ';
   });
-  return s.replace(/\s*¶\s*/g, ' … ').replace(/\s+/g, ' ').trim();
+  return s.replace(/\s*¶\s*/g, ' ⏸ ').replace(/…/g, ' ⏸ ').replace(/(\s*⏸\s*)+/g, ' ⏸ ').replace(/\s+/g, ' ').replace(/^\s*⏸\s*|\s*⏸\s*$/g, '').trim();
 }
 // Το κείμενο σπάει σε κομμάτια ώστε η ανάγνωση να ξεκινά γρήγορα
 function ttsChunks(t) {
-  const parts = ttsPrepare(t).match(/[^.!;…]+[.!;…]*/g) || []; const out = []; let cur = '';
+  const parts = ttsPrepare(t).match(/[^.!;⏸]+[.!;⏸]*/g) || []; const out = []; let cur = '';
   for (const p of parts) { if ((cur + p).length > 400 && cur) { out.push(cur.trim()); cur = ''; } cur += p; }
-  if (cur.trim()) out.push(cur.trim()); return out.slice(0, 8);
+  if (cur.trim()) out.push(cur.trim());
+  return out.map(c => c.replace(/^[\s⏸.,;]+/, '').trim()).filter(Boolean).slice(0, 8);
 }
-async function elFetch(text, prev, next) { const r = await SB.fn('tts', { text, speed: TTS.speed, previous_text: prev || '', next_text: next || '' }, { raw: true }); return URL.createObjectURL(await r.blob()); }
+// για ElevenLabs: πραγματική παύση + λίγη σιωπή στην αρχή (το iPhone «τρώει» την αρχή του ήχου)
+const elText = c => '<break time="0.35s" /> ' + c.replace(/\s*⏸\s*/g, ' <break time="0.45s" /> ').trim();
+async function elFetch(text, prev, next) { const r = await SB.fn('tts', { text: elText(text), speed: TTS.speed, previous_text: String(prev || '').replace(/⏸/g, ','), next_text: String(next || '').replace(/⏸/g, ',') }, { raw: true }); return URL.createObjectURL(await r.blob()); }
 // Ακρόαση: μόλις ανοίξει, όλες οι απαντήσεις διαβάζονται μέχρι να πατηθεί «Κλείσιμο ακρόασης» (μένει αποθηκευμένη)
 AI.listen = (() => { try { return localStorage.getItem('mg-listen') !== '0'; } catch (e) { return true; } })(); // ανοιχτή από προεπιλογή
 function setListen(v) { AI.listen = v; try { localStorage.setItem('mg-listen', v ? '1' : '0'); } catch (e) {} }
