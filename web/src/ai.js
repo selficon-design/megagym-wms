@@ -13,13 +13,14 @@ function ttsPickVoice() {
   return TTS.voice;
 }
 if (TTS.ok) { ttsPickVoice(); try { speechSynthesis.onvoiceschanged = ttsPickVoice; } catch (e) {} }
-function ttsClean(t) { return String(t || '').replace(/\*\*/g, '').replace(/[#•*_`>]/g, ' ').replace(/ΠΑΡ-0*(\d+)/g, 'παραλαβή $1').replace(/ΤΟΠ-0*(\d+)/g, 'τοποθέτηση $1').replace(/(\d)\s*τεμ\b\.?/g, '$1 τεμάχια').replace(/(\d)\s*μ²/g, '$1 τετραγωνικά μέτρα').replace(/\s+/g, ' ').trim(); }
+function ttsClean(t) { return String(t || '').replace(/\*\*/g, '').replace(/[#•*_`>]/g, ' ').replace(/ΠΑΡ-0*(\d+)/g, 'παραλαβή $1').replace(/ΤΟΠ-0*(\d+)/g, 'τοποθέτηση $1').replace(/(\d)\s*τεμ\.?(?!\p{L})/gu, '$1 τεμάχια').replace(/(\d)\s*μ²/g, '$1 τετραγωνικά μέτρα').replace(/\s+/g, ' ').trim(); }
 function ttsSpeak(text) {
   if (!TTS.ok) return;
   try {
     speechSynthesis.cancel();
-    const chunks = ttsClean(text).match(/[^.!;\n]{1,220}[.!;]?/g) || [];
-    chunks.forEach(c => { const u = new SpeechSynthesisUtterance(c); u.lang = 'el-GR'; if (TTS.voice || ttsPickVoice()) u.voice = TTS.voice; u.rate = 1.02; speechSynthesis.speak(u); });
+    const prep = typeof ttsPrepare === 'function' ? ttsPrepare(text) : ttsClean(text);
+    const chunks = prep.match(/[^.!;…\n]{1,220}[.!;…]?/g) || [];
+    chunks.forEach(c => { const u = new SpeechSynthesisUtterance(c); u.lang = 'el-GR'; if (TTS.voice || ttsPickVoice()) u.voice = TTS.voice; u.rate = TTS.speed || 0.9; speechSynthesis.speak(u); });
   } catch (e) { toast('Η ανάγνωση δεν είναι διαθέσιμη σε αυτή τη συσκευή.', true); }
 }
 ACT.ttsToggle = () => {
@@ -54,7 +55,7 @@ function renderAi() {
   const box = $('#ai'); box.hidden = !AI.open; if (!AI.open) return;
   const unavailable = !sampleCap;
   box.innerHTML = `<div class="aipanel" role="dialog" aria-label="MEGA GYM AI"><div class="aihead"><span class="brand"><span class="mk">AI</span></span><b>MEGA GYM AI</b>
-    ${TTS.ok ? `<button data-act="ttsToggle" aria-pressed="${TTS.on}" title="Ανάγνωση απαντήσεων" style="${TTS.on ? 'background:var(--accent);color:#111;border-color:var(--accent)' : ''}">${TTS.on ? 'Φωνή: ON' : 'Φωνή: OFF'}</button>` : ''}<button data-act="clearAi">Νέα συζήτηση</button><button data-act="closeAi" aria-label="Κλείσιμο">✕</button></div>
+    ${TTS.ok ? `<button data-act="ttsToggle" aria-pressed="${TTS.on}" title="Ανάγνωση απαντήσεων" style="${TTS.on ? 'background:var(--accent);color:#111;border-color:var(--accent)' : ''}">${TTS.on ? 'Φωνή: ON' : 'Φωνή: OFF'}</button>${TTS.on && typeof speedLabel === 'function' ? `<button data-act="ttsSpeed" title="Ταχύτητα φωνής — πατήστε για αλλαγή">Ταχύτητα: ${speedLabel()}</button>` : ''}` : ''}<button data-act="clearAi">Νέα συζήτηση</button><button data-act="closeAi" aria-label="Κλείσιμο">✕</button></div>
     <div class="aimsgs" id="aimsgs">${unavailable ? `<div class="warnbox">Ο AI Assistant δεν είναι διαθέσιμος αυτή τη στιγμή. Ελέγξτε τη σύνδεση και ανοίξτε ξανά την εφαρμογή.</div>` :
       (AI.items.length ? AI.items.map(aiItemHtml).join('') : `<div class="msg a">Γεια σας. Ρωτήστε με πώς γίνεται οποιαδήποτε εργασία στην εφαρμογή, ή για προϊόντα, αποθέματα, παραλαβές, τοποθετήσεις και σημειώσεις, ή δώστε μου εντολή να ετοιμάσω μια κίνηση. Κάθε ενέργεια εκτελείται μόνο αφού την επιβεβαιώσετε.</div>
         <div class="suggest">${AI_SUGGEST.map(s => `<button data-act="aiSuggest">${esc(s)}</button>`).join('')}</div>`)}</div>
@@ -169,6 +170,10 @@ function placementInfo(id, detail) {
 
 /* ---------------- εργαλεία για το μοντέλο ---------------- */
 const AI_TOOLS = [
+  { name: 'set_voice_speed', description: 'Αλλάζει μόνιμα την ταχύτητα της φωνής που διαβάζει τις απαντήσεις. Κάλεσέ το όταν ο χρήστης ζητά να μιλάς πιο αργά, πιο σιγά (εννοώντας ρυθμό), πιο γρήγορα ή κανονικά. change: slower | faster | slowest | normal.',
+    inputSchema: { type: 'object', properties: { change: { type: 'string', enum: ['slower', 'faster', 'slowest', 'normal'] } }, required: ['change'] },
+    execute: ({ change }) => { const cur = TTS.speed || 0.9; const v = change === 'slowest' ? 0.75 : change === 'normal' ? 0.95 : change === 'faster' ? cur + 0.1 : cur - 0.1;
+      const n = setTtsSpeed(v); return { ok: true, speed: Math.round(n * 100) / 100, label: speedLabel(), note: 'Η νέα ταχύτητα ισχύει από αυτή την απάντηση και μένει αποθηκευμένη σε αυτή τη συσκευή.' }; } },
   { name: 'get_manual', description: 'Οδηγός χρήσης της εφαρμογής. Κάλεσέ το για ΚΑΘΕ ερώτηση «πώς κάνω…», «πού βρίσκω…», «τι σημαίνει…» ή «τι δικαίωμα χρειάζομαι…». Επιστρέφει τις πιο σχετικές ενότητες με τα ακριβή βήματα και ονόματα κουμπιών/μενού. query: λέξεις-κλειδιά στα ελληνικά.',
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
     execute: i => { const r = manualSearch(String(i.query || '')).slice(0, 3); return r.length ? r.map(s => ({ section_id: s.id, title: s.t, text: s.b })) : { note: 'Καμία ενότητα δεν ταιριάζει. Διαθέσιμες ενότητες:', sections: MANUAL.map(s => ({ section_id: s.id, title: s.t })) }; } },
@@ -512,6 +517,7 @@ function aiRules() {
 6. Καταστάσεις αποθέματος: Κανονικό, Μεταχειρισμένο, Κατεστραμμένο, Προς έλεγχο. «ΔΙΑΘΕΣΙΜΑ ΠΡΟΣ ΧΡΗΣΗ» = ΜΟΝΟ τα κανονικά (καλή κατάσταση) σε αποθήκες, αποθήκες γυμναστηρίων και τα καινούργια στα οχήματα — αυτό εννοεί ο χρήστης όταν ρωτά «πόσα έχουμε». Τα παλιά (μεταχειρισμένα, κατεστραμμένα, προς έλεγχο, παλιά στο αμάξι) και τα εγκατεστημένα σε γυμναστήρια ΔΕΝ είναι προς χρήση· ανέφερέ τα χωριστά μόνο αν ζητηθούν ή αν βοηθούν.
 7. Μην αθροίζεις διαφορετικές μονάδες μέτρησης. Ανέφερε πάντα μονάδα.
 8. Οι αριθμοί παραστατικών: ΜΓΥ μεταφορά από γυμναστήριο, ΕΠΞ επεξεργασία υλικού, ΜΡΤ μεταφορά ρεταλιών, ΕΙΣ εισαγωγή, ΠΑΡ παραλαβή, ΤΟΠ τοποθέτηση, ΕΠΓ επιστροφή από γυμναστήριο, ΕΠΑ επιστροφή σε αποθήκη, ΜΑΓ σε αποθήκη γυμναστηρίου, ΜΕΤ μεταφορά, ΜΟΧ μεταφορά σε άλλο όχημα, ΚΑΤ αλλαγή κατάστασης, ΑΠΣ απόσυρση, ΑΠΓ απογραφή. Ο χρήστης μπορεί να γράψει «00087» ή «87».
+8β. ΦΩΝΗ: αν ο χρήστης ζητήσει να μιλάς πιο αργά/σιγά (ρυθμό) ή πιο γρήγορα, κάλεσε set_voice_speed — η αλλαγή μένει μόνιμη· μην προσπαθείς να «γράψεις πιο αργά». ${TTS && TTS.on ? 'Η φωνή είναι ΑΝΟΙΧΤΗ: γράφε σύντομες προτάσεις, ένα προϊόν ανά γραμμή, και τους κωδικούς χωριστά από το όνομα (η εφαρμογή τους διαβάζει γράμμα-γράμμα). Απόφευγε μεγάλους πίνακες· για πολλά αποτελέσματα πες τα 5 πρώτα και ρώτα αν θέλει τα υπόλοιπα.' : ''}
 9. Μπορείς να ανοίξεις οθόνες με open_screen (και screen=replacements για στατιστική με γραφήματα).
 10. Για ερωτήσεις χρήσης της εφαρμογής («πώς κάνω…», «πού είναι…») κάλεσε ΠΡΩΤΑ get_manual και απάντησε με αριθμημένα βήματα, χρησιμοποιώντας ακριβώς τα ονόματα μενού και κουμπιών του οδηγού. Μην επινοείς κουμπιά ή οθόνες.
 11. ΕΙΣΑΓΩΓΗ ΣΕ ΓΥΜΝΑΣΤΗΡΙΟ γίνεται με τρεις τρόπους: από αμάξι (place), από αποθήκη γυμναστηρίου (install), κατευθείαν από προμηθευτή (supply_to_gym). Μεταφορά εγκατεστημένων σε άλλο γυμναστήριο ή αποθήκη: move_from_gym — ρώτα αν είναι σε καλή κατάσταση ή μεταχειρισμένα.

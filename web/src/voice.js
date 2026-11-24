@@ -14,22 +14,48 @@ function ttsStop() {
   if (VOICE.url) { URL.revokeObjectURL(VOICE.url); VOICE.url = null; }
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
 }
+// Ταχύτητα ομιλίας: μένει στη συσκευή. 0,8 = αργά · 0,9 = κανονικά (προεπιλογή) · 1,05 = γρήγορα
+const SPEEDS = [[0.75, 'Πολύ αργά'], [0.85, 'Αργά'], [0.95, 'Κανονικά'], [1.08, 'Γρήγορα']];
+TTS.speed = (() => { try { const v = parseFloat(localStorage.getItem('mg-tts-speed')); return v >= 0.7 && v <= 1.2 ? v : 0.85; } catch (e) { return 0.85; } })();
+function setTtsSpeed(v) { TTS.speed = Math.min(1.2, Math.max(0.7, v)); try { localStorage.setItem('mg-tts-speed', String(TTS.speed)); } catch (e) {} if (AI.open) renderAi(); return TTS.speed; }
+const speedLabel = () => (SPEEDS.reduce((b, s) => Math.abs(s[0] - TTS.speed) < Math.abs(b[0] - TTS.speed) ? s : b))[1];
+ACT.ttsSpeed = () => { const i = SPEEDS.findIndex(s => Math.abs(s[0] - TTS.speed) < 0.03); const n = SPEEDS[(i + 1) % SPEEDS.length]; setTtsSpeed(n[0]); toast('Ταχύτητα φωνής: ' + n[1]); if (TTS.on) ttsSpeak('Έτσι θα μιλάω. Κωδικός ΜG-00125.'); };
+// Κείμενο για ομιλία: οι κωδικοί διαβάζονται χαρακτήρα-χαρακτήρα με παύσεις, οι λίστες με παύση ανάμεσα
+const SAY_DIG = ['μηδέν', 'ένα', 'δύο', 'τρία', 'τέσσερα', 'πέντε', 'έξι', 'επτά', 'οκτώ', 'εννιά'];
+function sayCode(c) {
+  return c.split('').map(ch => /\d/.test(ch) ? SAY_DIG[+ch] : /[-_/.]/.test(ch) ? '' : ch.toUpperCase()).filter(Boolean).join(', ');
+}
+function ttsPrepare(t) {
+  let s = String(t || '');
+  s = s.replace(/^\s*(?:[-•*]|\d+[.)])\s+/gm, '\n'); // κουκκίδες λίστας → νέα γραμμή (παύση)
+  s = ttsClean(s.replace(/\n+/g, ' ¶ '));
+  // παραστατικά: ΕΙΣ-00012 → «εισαγωγή 12» (χωρίς τα μηδενικά)
+  const DOC = { ΕΙΣ: 'εισαγωγή', ΠΑΡ: 'παραλαβή', ΤΟΠ: 'τοποθέτηση', ΕΠΓ: 'επιστροφή από γυμναστήριο', ΕΠΑ: 'επιστροφή σε αποθήκη', ΜΑΓ: 'μεταφορά σε αποθήκη γυμναστηρίου', ΜΕΤ: 'μεταφορά', ΜΟΧ: 'μεταφορά οχήματος', ΜΓΥ: 'μεταφορά από γυμναστήριο', ΕΠΞ: 'επεξεργασία', ΜΡΤ: 'μεταφορά ρεταλιών', ΚΑΤ: 'αλλαγή κατάστασης', ΑΠΣ: 'απόσυρση', ΑΠΓ: 'απογραφή' };
+  s = s.replace(/(?<!\p{L})(ΕΙΣ|ΠΑΡ|ΤΟΠ|ΕΠΓ|ΕΠΑ|ΜΑΓ|ΜΕΤ|ΜΟΧ|ΜΓΥ|ΕΠΞ|ΜΡΤ|ΚΑΤ|ΑΠΣ|ΑΠΓ)-0*(\d+)/gu, (m, k, n) => DOC[k] + ' ' + n);
+  // κωδικοί προϊόντων: λέξεις με γράμματα ΚΑΙ ψηφία, ή με παύλα/κάθετο και ψηφία, ή 5+ ψηφία στη σειρά
+  s = s.replace(/(?<![\p{L}\d])(?=[\p{L}\d\-_/.]*\d)(?=[\p{L}\d\-_/.]*[\p{L}\-_/])[\p{L}\d][\p{L}\d\-_/.]*[\p{L}\d](?![\p{L}\d])|(?<![\d,.])\d{5,}(?![\d,]|\.\d)/gu, (m, off, str) => {
+    if (/^\d+(mm|cm|m|kg|w|v|watt)$/i.test(m) || /^\d+[xχ×]\d+/i.test(m)) return m; // διαστάσεις/μονάδες: κανονικά
+    const said = /κωδικ\p{L}*\s*:?\s*$/iu.test(str.slice(Math.max(0, off - 14), off)); // ήδη γράφει «κωδικός»
+    return (said ? ' … ' : ' … κωδικός ') + sayCode(m) + ' … ';
+  });
+  return s.replace(/\s*¶\s*/g, ' … ').replace(/\s+/g, ' ').trim();
+}
 // Το κείμενο σπάει σε κομμάτια ώστε η ανάγνωση να ξεκινά γρήγορα
 function ttsChunks(t) {
-  const parts = ttsClean(t).match(/[^.!;\n]+[.!;]?/g) || []; const out = []; let cur = '';
+  const parts = ttsPrepare(t).match(/[^.!;…]+[.!;…]*/g) || []; const out = []; let cur = '';
   for (const p of parts) { if ((cur + p).length > 400 && cur) { out.push(cur.trim()); cur = ''; } cur += p; }
   if (cur.trim()) out.push(cur.trim()); return out.slice(0, 8);
 }
-async function elFetch(text) { const r = await SB.fn('tts', { text }, { raw: true }); return URL.createObjectURL(await r.blob()); }
+async function elFetch(text, prev, next) { const r = await SB.fn('tts', { text, speed: TTS.speed, previous_text: prev || '', next_text: next || '' }, { raw: true }); return URL.createObjectURL(await r.blob()); }
 ttsSpeak = async function (text) {
   ttsStop(); const my = VOICE.seq;
   if (!VOICE.elOk) return deviceSpeak(text);
   const chunks = ttsChunks(text); if (!chunks.length) return;
   try {
-    let next = elFetch(chunks[0]);
+    let next = elFetch(chunks[0], '', chunks[1]);
     for (let i = 0; i < chunks.length; i++) {
       const url = await next; if (my !== VOICE.seq) { URL.revokeObjectURL(url); return; }
-      if (i + 1 < chunks.length) next = elFetch(chunks[i + 1]);
+      if (i + 1 < chunks.length) next = elFetch(chunks[i + 1], chunks[i], chunks[i + 2]);
       VOICE.url = url; VOICE.audio = new Audio(url);
       await new Promise((res, rej) => { VOICE.audio.onended = res; VOICE.audio.onerror = rej; VOICE.audio.play().catch(rej); });
       URL.revokeObjectURL(url); VOICE.url = null; if (my !== VOICE.seq) return;
