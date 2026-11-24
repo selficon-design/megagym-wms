@@ -193,6 +193,11 @@ function micBtnHtml(disabled) {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">${VOICE.recording ? '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>' : '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'}</svg></button>`;
 }
 const joinTxt = (...a) => a.map(x => String(x || '').trim()).filter(Boolean).join(' ');
+function micEdited(value) {
+  const L = VOICE.live; if (!L) return;
+  L.base = value; L.committed = '';
+  if (L.partial) { L.skip = L.partial; L.partial = ''; } // η φράση που ήδη φαινόταν έχει ενσωματωθεί όπως τη διορθώσατε
+}
 function liveShow() {
   const L = VOICE.live; if (!L) return;
   AI.draft = joinTxt(L.base, L.committed, L.partial);
@@ -204,6 +209,15 @@ function toPcm16B64(f32, inRate) {
   const u8 = new Uint8Array(out.buffer); let bin = '';
   for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
   return btoa(bin);
+}
+// Λεξιλόγιο για την αναγνώριση: ονόματα αποθηκών, γυμναστηρίων, οχημάτων, ειδών/κατηγοριών/τύπων και προϊόντων
+function sttKeyterms() {
+  const out = new Set(); const add = v => { v = String(v || '').replace(/\s+/g, ' ').trim(); if (v.length >= 2 && v.length <= 40) out.add(v); };
+  [S.wh, S.gym, S.veh].forEach(m => Object.values(m || {}).forEach(x => { if (x.active !== false) add(x.name); }));
+  Object.values(S.cat || {}).forEach(c => { add(c.name); (c.subs || []).forEach(sb => { add(sb.name); (sb.types || []).forEach(t => add(t.name)); }); });
+  Object.values(S.prod || {}).filter(p => !p.deleted && p.active !== false).forEach(p => { add(p.name); if (p.code && /\d/.test(p.code) && !/\s/.test(p.code)) add(p.code); });
+  ['παραλαβή', 'εισαγωγή', 'τοποθέτηση', 'εγκατάσταση', 'αντικατάσταση', 'απόσυρση', 'επιστροφή', 'μεταφορά', 'απογραφή', 'ρετάλι', 'ρετάλια', 'λαμαρίνα', 'λαμαρίνες', 'αμάξι', 'απόθεμα', 'τεμάχια'].forEach(add);
+  return [...out].slice(0, 60);
 }
 function micCancel() { if (VOICE.recording) micStop(false, true); }
 ACT.mic = () => { if (VOICE.recording) micStop(false); else micStart(); };
@@ -222,21 +236,31 @@ async function micStart() {
     L.src = ctx.createMediaStreamSource(L.stream); L.proc = ctx.createScriptProcessor(4096, 1, 1);
     L.proc.onaudioprocess = e => {
       const b64 = toPcm16B64(e.inputBuffer.getChannelData(0), ctx.sampleRate);
-      const msg = JSON.stringify({ message_type: 'input_audio_chunk', audio_base_64: b64, commit: false, sample_rate: 16000 });
+      const m = { message_type: 'input_audio_chunk', audio_base_64: b64, commit: false, sample_rate: 16000 };
+      if (!L.ctxSent) { L.ctxSent = true; const prev = joinTxt(L.base) || ((AI.items.filter(x => x.k === 'u').pop() || {}).text || ''); if (prev) m.previous_text = prev.slice(-500); }
+      const msg = JSON.stringify(m);
       if (L.open && L.ws && L.ws.readyState === 1) L.ws.send(msg); else if (L.queue.length < 400) L.queue.push(msg);
     };
     L.src.connect(L.proc); L.proc.connect(ctx.destination);
     try {
       const k = await SB.fn('stt', { action: 'token' });
       if (L !== VOICE.live) return;
-      const q = new URLSearchParams({ model_id: 'scribe_v2_realtime', token: k.token, audio_format: 'pcm_16000', commit_strategy: 'vad', language_code: k.language || 'el' });
+      const q = new URLSearchParams({ model_id: 'scribe_v2_realtime', token: k.token, audio_format: 'pcm_16000', commit_strategy: 'vad', language_code: k.language || 'el', no_verbatim: 'true' });
+      // ονόματα του καταλόγου ως λεξιλόγιο (όσο χωρά στη διεύθυνση)
+      let len = 0; for (const t of sttKeyterms()) { len += t.length + 12; if (len > 3000) break; q.append('keyterms', t); }
       const ws = L.ws = new WebSocket('wss://api.elevenlabs.io/v1/speech-to-text/realtime?' + q);
       ws.onmessage = ev => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         const ty = m.message_type;
         if (ty === 'session_started') { L.open = true; while (L.queue.length) ws.send(L.queue.shift()); }
-        else if (ty === 'partial_transcript') { L.partial = m.text || ''; liveShow(); }
-        else if (ty === 'committed_transcript' || ty === 'committed_transcript_with_timestamps') { L.committed = joinTxt(L.committed, m.text); L.partial = ''; liveShow(); L.waiters.splice(0).forEach(f => f()); }
+        else if (ty === 'partial_transcript' && !L.skip) { L.partial = m.text || ''; liveShow(); }
+        else if (ty === 'committed_transcript' || ty === 'committed_transcript_with_timestamps') {
+          if (L.skip) { // η φράση που διορθώσατε με το χέρι δεν ξαναγράφεται· κρατάμε μόνο όσα είπατε ΜΕΤΑ τη διόρθωση
+            const rem = String(m.text || '').trim().split(/\s+/).slice(L.skip.trim().split(/\s+/).length).join(' ');
+            L.skip = ''; L.partial = ''; if (rem) L.committed = joinTxt(L.committed, rem); }
+          else { L.committed = joinTxt(L.committed, m.text); L.partial = ''; }
+          liveShow(); L.waiters.splice(0).forEach(f => f()); }
+        else if (ty === 'partial_transcript' && L.skip) { /* αγνοείται μέχρι να κλείσει η διορθωμένη φράση */ }
         else if (m.error || /error|exceeded|limit|invalid/.test(ty || '')) { console.warn('stt', m); if (!L.open) liveFallback(L, m.error || ty); }
       };
       ws.onerror = () => { if (!L.open) liveFallback(L, 'σύνδεση'); };
