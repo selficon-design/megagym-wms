@@ -35,7 +35,7 @@ const rateFor = c => Math.max(0.5, Math.min(2, effFor(c.slow) / (c.api || 1)));
 const LAT = { A: 'έι', B: 'μπι', C: 'σι', D: 'ντι', E: 'ι', F: 'εφ', G: 'τζι', H: 'έιτς', I: 'άι', J: 'τζέι', K: 'κέι', L: 'ελ', M: 'εμ', N: 'εν', O: 'όου', P: 'πι', Q: 'κιου', R: 'αρ', S: 'ες', T: 'τι', U: 'γιου', V: 'βι', W: 'ντάμπλ γιου', X: 'εξ', Y: 'γουάι', Z: 'ζεντ' };
 const sayLetter = ch => LAT[ch.toUpperCase()] || ch;
 // λέξεις με συγκεκριμένη προφορά
-const SAYW = { watt: 'βατ', watts: 'βατ', led: 'λεντ', inox: 'ινόξ', par: 'παρ', rgb: 'αρ τζι μπι', rgbw: 'αρ τζι μπι ντάμπλ γιου', dkp: 'ντι κέι πι', usb: 'γιου ες μπι', wifi: 'γουάι φάι', 'wi-fi': 'γουάι φάι', tv: 'τι βι', mm: 'χιλιοστά', cm: 'εκατοστά', kg: 'κιλά', kw: 'κιλοβάτ', v: 'βολτ', ac: 'έι σι', dc: 'ντι σι', ok: 'οκέι', spot: 'σποτ', track: 'τρακ', strip: 'στριπ', tubes: 'τιουμπς', tube: 'τιουμπ', super: 'σούπερ', mirror: 'μίρορ', external: 'εξτέρναλ', outdoor: 'άουτντορ', indoor: 'ίντορ' };
+const SAYW = { degree: 'μοίρες', degrees: 'μοίρες', deg: 'μοίρες', watt: 'βατ', watts: 'βατ', led: 'λεντ', inox: 'ινόξ', par: 'παρ', rgb: 'αρ τζι μπι', rgbw: 'αρ τζι μπι ντάμπλ γιου', dkp: 'ντι κέι πι', usb: 'γιου ες μπι', wifi: 'γουάι φάι', 'wi-fi': 'γουάι φάι', tv: 'τι βι', mm: 'χιλιοστά', cm: 'εκατοστά', kg: 'κιλά', kw: 'κιλοβάτ', v: 'βολτ', ac: 'έι σι', dc: 'ντι σι', ok: 'οκέι', spot: 'σποτ', track: 'τρακ', strip: 'στριπ', tubes: 'τιουμπς', tube: 'τιουμπ', super: 'σούπερ', mirror: 'μίρορ', external: 'εξτέρναλ', outdoor: 'άουτντορ', indoor: 'ίντορ' };
 function sayCode(c) {
   return (String(c).match(/\p{L}+|\d+/gu) || []).map(g => /^\d+$/.test(g) ? String(parseInt(g, 10)) : g.toUpperCase().split('').map(sayLetter).join(', ')).join(', ');
 }
@@ -64,6 +64,7 @@ function ttsPrepare(t) {
   s = s.replace(/^\s*(\d+)[.)]\s+/gm, '\n$1, '); // αριθμημένη λίστα: «1. Λάμπα» → «1, Λάμπα» (ο αριθμός διαβάζεται)
   s = s.replace(/^\s*[-•*]\s+/gm, '\n'); // κουκκίδες → νέα γραμμή (παύση)
   s = s.replace(/(\d)\s*[xX×χΧ]\s*(?=\d)/g, '$1 επί '); // διαστάσεις: 1250X2500 → «1250 επί 2500»
+  s = s.replace(/(\d)\s*°\s*C\b/g, '$1 βαθμούς Κελσίου').replace(/(\d)\s*°/g, '$1 μοίρες').replace(/°/g, ' μοίρες '); // 45° → 45 μοίρες
   s = s.replace(/\s*(?:›|»|→|\||–|—|\s-\s|\s\/\s)\s*/g, ' ⁞ '); // διαχωριστικά (Είδος › Κατηγορία › Τύπος) → παύση
   s = ttsClean(s.replace(/\n+/g, ' ¶ '));
   // παραστατικά: ΕΙΣ-00012 → «εισαγωγή 12» (χωρίς τα μηδενικά)
@@ -91,12 +92,18 @@ function ttsChunks(t) {
   return out.map(c => c.replace(/^[\s⏸.,;]+/, '').trim()).filter(Boolean).slice(0, 8);
 }
 // για ElevenLabs: πραγματικές παύσεις· στα αριθμητικά τμήματα παύση και ανάμεσα στους αριθμούς
-const elText = (c, slow) => { let t = c.replace(/\s*⏸\s*/g, ' <break time="0.8s" /> ').replace(/\s*⁞\s*/g, ' <break time="0.6s" /> ').replace(/\s*˙\s*/g, ' <break time="0.25s" /> ');
-  if (slow) t = t.replace(/\s*,\s*/g, ' <break time="0.6s" /> '); // ανάμεσα σε γράμματα κωδικού / αριθμούς
+const elText = (c, slow) => { let t = c.replace(/⟦([^⟧]*)⟧/g, (m, x) => ' <break time="0.25s" /> ' + x.replace(/\s*,\s*/g, ' <break time="0.6s" /> ') + ' <break time="0.25s" /> '); // νούμερα/γράμματα κωδικών: παύση ανάμεσα
+  t = t.replace(/\s*⏸\s*/g, ' <break time="0.8s" /> ').replace(/\s*⁞\s*/g, ' <break time="0.6s" /> ').replace(/\s*˙\s*/g, ' <break time="0.25s" /> ');
+  if (slow) t = t.replace(/\s*,\s*/g, ' <break time="0.6s" /> ');
   t = t.replace(/(?:\s*<break time="([\d.]+)s" \/>\s*){2,}/g, m => { const v = Math.max(...[...m.matchAll(/([\d.]+)s/g)].map(x => +x[1])); return ' <break time="' + v + 's" /> '; });
   return t.replace(/^\s*<break[^>]*>\s*|\s*<break[^>]*>\s*$/g, '').replace(/\s+([.,;:!?)])/g, '$1').trim(); };
 // ένα κομμάτι → τμήματα: { text, slow } — τα ⟦…⟧ (νούμερα, κωδικοί) διαβάζονται πιο αργά
 function segments(chunk) {
+  // ΣΤΑΘΕΡΗ ταχύτητα: όλο το κομμάτι σε μία αίτηση (τα ⟦…⟧ μένουν για τις παύσεις στο elText)
+  if (!/[\p{L}\d]/u.test(chunk.replace(/[⟦⟧⏸⁞˙]/g, ''))) return [];
+  return [{ text: chunk.trim(), slow: false }];
+}
+function segmentsOld(chunk) {
   const out = []; chunk.split(/(⟦[^⟧]*⟧)/).forEach(p => {
     if (!p.trim()) return; const slow = p.startsWith('⟦'); const t = p.replace(/[⟦⟧]/g, '').trim(); if (!t) return;
     const last = out[out.length - 1];
@@ -216,8 +223,9 @@ function sttKeyterms() {
   [S.wh, S.gym, S.veh].forEach(m => Object.values(m || {}).forEach(x => { if (x.active !== false) add(x.name); }));
   Object.values(S.cat || {}).forEach(c => { add(c.name); (c.subs || []).forEach(sb => { add(sb.name); (sb.types || []).forEach(t => add(t.name)); }); });
   Object.values(S.prod || {}).filter(p => !p.deleted && p.active !== false).forEach(p => { add(p.name); if (p.code && /\d/.test(p.code) && !/\s/.test(p.code)) add(p.code); });
+  ['γράψε', 'γράψε μου', 'σβήσε', 'δείξε', 'δείξε μου', 'βρες', 'φέρε', 'ψάξε', 'πόσα', 'πόσες', 'πόσοι', 'καταχώρισε', 'μετάφερε', 'φόρτωσε', 'άνοιξε', 'σημείωσε', 'μοίρες'].forEach(add);
   ['παραλαβή', 'εισαγωγή', 'τοποθέτηση', 'εγκατάσταση', 'αντικατάσταση', 'απόσυρση', 'επιστροφή', 'μεταφορά', 'απογραφή', 'ρετάλι', 'ρετάλια', 'λαμαρίνα', 'λαμαρίνες', 'αμάξι', 'απόθεμα', 'τεμάχια'].forEach(add);
-  return [...out].slice(0, 60);
+  return [...out].slice(0, 75);
 }
 function micCancel() { if (VOICE.recording) micStop(false, true); }
 ACT.mic = () => { if (VOICE.recording) micStop(false); else micStart(); };
@@ -245,7 +253,8 @@ async function micStart() {
     try {
       const k = await SB.fn('stt', { action: 'token' });
       if (L !== VOICE.live) return;
-      const q = new URLSearchParams({ model_id: 'scribe_v2_realtime', token: k.token, audio_format: 'pcm_16000', commit_strategy: 'vad', language_code: k.language || 'el', no_verbatim: 'true' });
+      const q = new URLSearchParams({ model_id: 'scribe_v2_realtime', token: k.token, audio_format: 'pcm_16000', commit_strategy: 'vad', language_code: k.language || 'el', no_verbatim: 'true', multilang_mode: 'true' });
+      q.append('secondary_languages', 'en'); // ελληνικά κυρίως, δέχεται και αγγλικά στην ίδια φράση
       // ονόματα του καταλόγου ως λεξιλόγιο (όσο χωρά στη διεύθυνση)
       let len = 0; for (const t of sttKeyterms()) { len += t.length + 12; if (len > 3000) break; q.append('keyterms', t); }
       const ws = L.ws = new WebSocket('wss://api.elevenlabs.io/v1/speech-to-text/realtime?' + q);
