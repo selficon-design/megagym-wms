@@ -18,7 +18,7 @@ function ttsSpeak(text) {
   if (!TTS.ok) return;
   try {
     speechSynthesis.cancel();
-    const prep = (typeof ttsPrepare === 'function' ? ttsPrepare(text) : ttsClean(text)).replace(/\s*⏸\s*/g, '. ').replace(/[⟦⟧]/g, '').replace(/\s*˙\s*/g, ' ');
+    const prep = (typeof ttsPrepare === 'function' ? ttsPrepare(text) : ttsClean(text)).replace(/\s*⏸\s*/g, '. ').replace(/[⟦⟧]/g, '').replace(/\s*˙\s*/g, ' ').replace(/\s*⁞\s*/g, ', ');
     const chunks = prep.match(/[^.!;…\n]{1,220}[.!;…]?/g) || [];
     chunks.forEach(c => { const u = new SpeechSynthesisUtterance(c); u.lang = 'el-GR'; if (TTS.voice || ttsPickVoice()) u.voice = TTS.voice; u.rate = TTS.speed || 0.9; speechSynthesis.speak(u); });
   } catch (e) { toast('Η ανάγνωση δεν είναι διαθέσιμη σε αυτή τη συσκευή.', true); }
