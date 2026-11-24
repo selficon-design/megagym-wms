@@ -126,6 +126,10 @@ jobs:
           c=$(curl -sL "${u}config.js"); echo "$c" | grep -q "$REF.supabase.co" && echo "config.js: σωστό" || { echo "::error title=config.js::δεν περιέχει τη διεύθυνση του Supabase"; fail=1; }
           [ $fail = 0 ] && echo "::notice title=ΟΛΑ ΟΚ::Server, σύνδεση και εφαρμογή λειτουργούν"
           exit $fail
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: ElevenLabs (φωνή & μικρόφωνο)
         env:
           EK: ${{ secrets.ELEVENLABS_API_KEY }}
@@ -146,6 +150,8 @@ jobs:
           for v in 0.7 1.0 1.2; do curl -s -o /tmp/sp$v.mp3 -X POST "https://api.elevenlabs.io/v1/text-to-speech/$EV?output_format=mp3_44100_128" -H "xi-api-key: $EK" -H 'Content-Type: application/json' -d "${T/SPD/$v}"; done
           a=$(stat -c%s /tmp/sp0.7.mp3); n=$(stat -c%s /tmp/sp1.0.mp3); f=$(stat -c%s /tmp/sp1.2.mp3)
           echo "::notice title=Ταχύτητα φωνής::0,7 → $a bytes · 1,0 → $n bytes · 1,2 → $f bytes"
+          # όρια λεξιλογίου ζωντανής καταγραφής (για ρύθμιση της εφαρμογής)
+          EK="$EK" node tests/ci/stt_probe.mjs | while read -r l; do echo "::notice title=Λεξιλόγιο STT::$l"; done
           # ζωντανή καταγραφή: κλειδί μιας χρήσης
           c=$(curl -s -o /tmp/k -w '%{http_code}' -X POST "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe?max_session_duration_seconds=10" -H "xi-api-key: $EK")
           if [ "$c" = 200 ] && grep -q '"token"' /tmp/k; then echo "::notice title=Ζωντανή καταγραφή::ΟΚ"
