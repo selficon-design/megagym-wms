@@ -141,6 +141,11 @@ jobs:
           python3 -c "import wave;w=wave.open('/tmp/s.wav','wb');w.setnchannels(1);w.setsampwidth(2);w.setframerate(16000);w.writeframes(b'\0\0'*16000);w.close()"
           c=$(curl -s -o /tmp/s -w '%{http_code}' -X POST https://api.elevenlabs.io/v1/speech-to-text -H "xi-api-key: $EK" -F model_id=scribe_v2 -F file=@/tmp/s.wav)
           if [ "$c" = 200 ]; then echo "::notice title=Μικρόφωνο (STT)::ΟΚ"; else echo "::error title=Μικρόφωνο (STT) $c::$(head -c 300 /tmp/s)"; fi
+          # ταχύτητα: ίδια πρόταση σε 0,7 και 1,2 — η αργή πρέπει να βγαίνει αισθητά μεγαλύτερη (σε διάρκεια/μέγεθος)
+          T='{"text":"Στην αποθήκη Τατοΐου έχουμε σαράντα πέντε τεμάχια και στο αμάξι έξι.","model_id":"eleven_multilingual_v2","voice_settings":{"stability":0.7,"similarity_boost":0.75,"speed":SPD}}'
+          for v in 0.7 1.0 1.2; do curl -s -o /tmp/sp$v.mp3 -X POST "https://api.elevenlabs.io/v1/text-to-speech/$EV?output_format=mp3_44100_128" -H "xi-api-key: $EK" -H 'Content-Type: application/json' -d "${T/SPD/$v}"; done
+          a=$(stat -c%s /tmp/sp0.7.mp3); n=$(stat -c%s /tmp/sp1.0.mp3); f=$(stat -c%s /tmp/sp1.2.mp3)
+          echo "::notice title=Ταχύτητα φωνής::0,7 → $a bytes · 1,0 → $n bytes · 1,2 → $f bytes"
           # ζωντανή καταγραφή: κλειδί μιας χρήσης
           c=$(curl -s -o /tmp/k -w '%{http_code}' -X POST "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe?max_session_duration_seconds=10" -H "xi-api-key: $EK")
           if [ "$c" = 200 ] && grep -q '"token"' /tmp/k; then echo "::notice title=Ζωντανή καταγραφή::ΟΚ"; else echo "::warning title=Ζωντανή καταγραφή $c::$(head -c 300 /tmp/k) — η εφαρμογή θα χρησιμοποιεί ηχογράφηση και μετατροπή στο τέλος"; fi
