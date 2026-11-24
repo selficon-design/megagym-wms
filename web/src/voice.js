@@ -119,9 +119,9 @@ function ttsPrepare(t) {
 // Το κείμενο σπάει σε κομμάτια ώστε η ανάγνωση να ξεκινά γρήγορα
 function ttsChunks(t) {
   const parts = ttsPrepare(t).match(/[^.!;⏸]+[.!;⏸]*/g) || []; const out = []; let cur = '';
-  for (const p of parts) { if ((cur + p).length > 400 && cur) { out.push(cur.trim()); cur = ''; } cur += p; }
+  for (const p of parts) { if ((cur + p).length > 200 && cur) { out.push(cur.trim()); cur = ''; } cur += p; }
   if (cur.trim()) out.push(cur.trim());
-  return out.map(c => c.replace(/^[\s⏸.,;]+/, '').trim()).filter(Boolean).slice(0, 8);
+  return out.map(c => c.replace(/^[\s⏸.,;]+/, '').trim()).filter(Boolean).slice(0, 24); // μικρά, ισομεγέθη κομμάτια → σταθερός ρυθμός (η φωνή «ξεφεύγει» στα μεγάλα)
 }
 // για ElevenLabs: πραγματικές παύσεις· στα αριθμητικά τμήματα παύση και ανάμεσα στους αριθμούς
 const elText = (c, slow) => {
@@ -147,7 +147,7 @@ function segmentsOld(chunk) {
 }
 async function elFetch(text, prev, next, slow, first) {
   const speed = apiSpeed(effFor(slow)); VOICE.apis = VOICE.apis || {}; VOICE.apis[text] = speed;
-  const body = (first ? '<break time="0.35s" /> ' : '') + elText(text, slow); // σιωπή μόνο στην αρχή της ανάγνωσης (iPhone)
+  const body = elText(text, slow); // χωρίς εντολές παύσης (επιταχύνουν τη φωνή)· το κανάλι ήχου είναι ήδη ανοιχτό με σιωπή
   const r = await SB.fn('tts', { text: body, speed, previous_text: String(prev || '').replace(/⏸/g, ','), next_text: String(next || '').replace(/⏸/g, ',') }, { raw: true }); return URL.createObjectURL(await r.blob()); }
 // Ακρόαση: μόλις ανοίξει, όλες οι απαντήσεις διαβάζονται μέχρι να πατηθεί «Κλείσιμο ακρόασης» (μένει αποθηκευμένη)
 AI.listen = (() => { try { return localStorage.getItem('mg-listen') !== '0'; } catch (e) { return true; } })(); // ανοιχτή από προεπιλογή
@@ -174,14 +174,20 @@ const SILENT_WAV = (() => { const n = 800, b = new Uint8Array(44 + n), v = new D
   w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true); b.fill(128, 44);
   let s = ''; b.forEach(x => s += String.fromCharCode(x)); return 'data:audio/wav;base64,' + btoa(s); })();
 VOICE.el = new Audio(); VOICE.el.setAttribute('playsinline', ''); VOICE.el.preload = 'auto';
-function unlockAudio() {
-  if (VOICE.unlocked || VOICE.playing) return;
-  const el = VOICE.el; el.muted = false; el.src = SILENT_WAV;
+// Σε ΚΑΘΕ πάτημα (π.χ. το βελάκι) το κανάλι παίζει σιωπή σε επανάληψη μέχρι να έρθει η απάντηση — έτσι το iPhone
+// δεν το κλείνει όσο περιμένουμε το AI και η απάντηση διαβάζεται αμέσως, χωρίς «Επανάληψη ακρόασης».
+function unlockAudio(ev) {
+  if (VOICE.playing) return; // και κατά την υπαγόρευση: το βελάκι σταματά το μικρόφωνο ΚΑΙ ανοίγει το κανάλι
+  if (ev && ev.type === 'keydown' && ev.key !== 'Enter') return;
+  const el = VOICE.el; if (!el.paused && el.loop) { clearTimeout(VOICE.silT); VOICE.silT = setTimeout(silenceOff, 90000); return; }
+  el.muted = false; el.loop = true; el.src = SILENT_WAV;
   const p = el.play(); if (p && p.then) p.then(() => { VOICE.unlocked = true; }).catch(() => {});
+  clearTimeout(VOICE.silT); VOICE.silT = setTimeout(silenceOff, 90000);
 }
+function silenceOff() { const el = VOICE.el; if (el.loop && !VOICE.playing) { try { el.pause(); } catch (e) {} el.loop = false; } }
 ['touchend', 'pointerup', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
 function playUrl(url, rate) {
-  return new Promise((res, rej) => { const el = VOICE.el; el.onended = () => res(); el.onerror = () => rej(new Error('audio'));
+  return new Promise((res, rej) => { const el = VOICE.el; el.loop = false; clearTimeout(VOICE.silT); el.onended = () => res(); el.onerror = () => rej(new Error('audio'));
     el.preservesPitch = el.mozPreservesPitch = el.webkitPreservesPitch = true; // πιο αργά χωρίς «βαριά» φωνή
     const R = rate || 1; const fix = () => { if (Math.abs(el.playbackRate - R) > 0.01) el.playbackRate = R; el.defaultPlaybackRate = R; };
     el.onloadedmetadata = fix; el.oncanplay = fix; el.onplaying = fix;

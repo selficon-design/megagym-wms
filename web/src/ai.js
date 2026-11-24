@@ -551,7 +551,7 @@ async function aiSend(text) {
   try {
     const r = await sampleCap(turns, { system: aiRules(), tools, signal: AI.ctl.signal, onText: ({ text: t }) => { ans.text = t; const els = $$('#aimsgs .msg.a'); if (els.length) els[els.length - 1].innerHTML = mdLite(t); } });
     ans.text = r.text; AI.turns.push({ role: 'assistant', content: r.text });
-    if (AI.speak && r.text) ttsSpeak(r.text);
+    if (AI.speak && r.text) ttsSpeak(r.text); else if (typeof silenceOff === 'function') silenceOff();
   } catch (e) {
     if (e.text) ans.text = e.text;
     const msg = { cancelled: '', not_granted: 'Δεν δόθηκε άδεια χρήσης του Claude για αυτή την εφαρμογή.', rate_limited: 'Πολλά αιτήματα ή όριο χρήσης. Δοκιμάστε ξανά σε λίγο.', tools_unavailable: 'Αυτή η προβολή δεν υποστηρίζει τα εργαλεία του βοηθού.', sampling_disabled: 'Το Claude δεν είναι διαθέσιμο για αυτόν τον λογαριασμό.', session_expired: 'Η σύνδεση έληξε. Συνδεθείτε ξανά.', server: e.message }[e.code];
