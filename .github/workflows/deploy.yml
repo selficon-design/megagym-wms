@@ -51,7 +51,10 @@ jobs:
       - name: Σύνδεση με το project
         run: .github/scripts/step.sh supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
       - name: Ενημέρωση βάσης (migrations)
-        run: .github/scripts/step.sh supabase db push --password "$SUPABASE_DB_PASSWORD"
+        run: |
+          # νεότερες εκδόσεις του Supabase CLI θέλουν ρητά το project (--linked ή --remote)
+          .github/scripts/step.sh supabase db push --linked --password "$SUPABASE_DB_PASSWORD" \
+            || .github/scripts/step.sh supabase db push --remote --password "$SUPABASE_DB_PASSWORD"
       - name: Κλειδιά AI & φωνής (μόνο στον server)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
