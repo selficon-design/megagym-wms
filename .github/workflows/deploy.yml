@@ -47,7 +47,8 @@ jobs:
           [[ $t =~ ^sbp_[a-f0-9]{40}$ ]] || echo "::warning title=token::Το SUPABASE_ACCESS_TOKEN έχει μήκος ${#t} — το εργαλείο θέλει sbp_ + 40 χαρακτήρες"
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # σταθερή έκδοση: δεν χρειάζεται αναζήτηση «τελευταίας» (αποφεύγει το όριο αιτημάτων του GitHub)
+          version: 3.3.0
       - name: Σύνδεση με το project
         run: .github/scripts/step.sh supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
       - name: Ενημέρωση βάσης (migrations)
