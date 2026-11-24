@@ -47,8 +47,13 @@ function ttsPrepare(t) {
   const re = codeRegex();
   if (re) s = s.replace(re, (m, _g, off, str) => {
     const said = /κωδικ\p{L}*\s*:?\s*$/iu.test(str.slice(Math.max(0, off - 14), off)); // ήδη γράφει «κωδικός»
-    return (said ? ' ' : ' κωδικός ') + sayCode(m) + ' ⏸ ';
+    return (said ? ' ⟦' : ' κωδικός ⟦') + sayCode(m) + '⟧ ⏸ ';
   });
+  // αριθμοί (και σειρές αριθμών «1, 2, 3») → αργό τμήμα, μαζί με τη μονάδα που ακολουθεί
+  s = s.replace(/(?<![\p{L}\d⟦.,])(\d+(?:[.,]\d+)*(?:[xXχΧ×]\d+(?:[.,]\d+)*)*(?:\s*(?:,|και|-|έως|ως|μέχρι)\s*\d+(?:[.,]\d+)*)*)(\s*(?:τεμάχια|τεμάχιο|φύλλα|φύλλο|μέτρα|μέτρο|τετραγωνικά μέτρα|κιλά|mm|cm|watt|W)(?![\p{L}\d]))?(?![^⟦]*⟧)/gu,
+    (m, n, u) => /\d[^\d]+\d/.test(n.replace(/[.,]\d/g, '')) && /(,|και|-|έως|ως|μέχρι)/.test(n)
+      ? ' ⟦' + n + (u || '') + '⟧ '            // σειρά αριθμών → αργό τμήμα
+      : ' ˙ ' + n + (u || '') + ' ˙ ');        // μεμονωμένος αριθμός → μικρή παύση πριν και μετά
   return s.replace(/\s*¶\s*/g, ' ⏸ ').replace(/…/g, ' ⏸ ').replace(/(\s*⏸\s*)+/g, ' ⏸ ').replace(/\s+/g, ' ').replace(/^\s*⏸\s*|\s*⏸\s*$/g, '').trim();
 }
 // Το κείμενο σπάει σε κομμάτια ώστε η ανάγνωση να ξεκινά γρήγορα
@@ -58,9 +63,26 @@ function ttsChunks(t) {
   if (cur.trim()) out.push(cur.trim());
   return out.map(c => c.replace(/^[\s⏸.,;]+/, '').trim()).filter(Boolean).slice(0, 8);
 }
-// για ElevenLabs: πραγματική παύση + λίγη σιωπή στην αρχή (το iPhone «τρώει» την αρχή του ήχου)
-const elText = c => '<break time="0.35s" /> ' + c.replace(/\s*⏸\s*/g, ' <break time="0.45s" /> ').trim();
-async function elFetch(text, prev, next) { const r = await SB.fn('tts', { text: elText(text), speed: TTS.speed, previous_text: String(prev || '').replace(/⏸/g, ','), next_text: String(next || '').replace(/⏸/g, ',') }, { raw: true }); return URL.createObjectURL(await r.blob()); }
+// για ElevenLabs: πραγματικές παύσεις· στα αριθμητικά τμήματα παύση και ανάμεσα στους αριθμούς
+const elText = (c, slow) => { let t = c.replace(/\s*⏸\s*/g, ' <break time="0.45s" /> ').replace(/\s*˙\s*/g, ' <break time="0.15s" /> ');
+  if (slow) t = t.replace(/\s*,\s*/g, ' <break time="0.3s" /> ');
+  t = t.replace(/(?:\s*<break time="([\d.]+)s" \/>\s*){2,}/g, m => { const v = Math.max(...[...m.matchAll(/([\d.]+)s/g)].map(x => +x[1])); return ' <break time="' + v + 's" /> '; });
+  return t.replace(/^\s*<break[^>]*>\s*|\s*<break[^>]*>\s*$/g, '').replace(/\s+([.,;:!?)])/g, '$1').trim(); };
+// ένα κομμάτι → τμήματα: { text, slow } — τα ⟦…⟧ (νούμερα, κωδικοί) διαβάζονται πιο αργά
+function segments(chunk) {
+  const out = []; chunk.split(/(⟦[^⟧]*⟧)/).forEach(p => {
+    if (!p.trim()) return; const slow = p.startsWith('⟦'); const t = p.replace(/[⟦⟧]/g, '').trim(); if (!t) return;
+    const last = out[out.length - 1];
+    if (last && last.slow === slow) last.text += ' ' + t; else out.push({ text: t, slow });
+  });
+  // πολύ μικρά κανονικά κομμάτια ανάμεσα σε αργά (π.χ. «και») ενώνονται με το αργό, για λιγότερες διακοπές
+  for (let i = out.length - 2; i > 0; i--) if (!out[i].slow && out[i - 1].slow && out[i + 1].slow && /^(,|και|ή|έως|ως|μέχρι|-)$/.test(out[i].text.trim())) { out[i - 1].text += ' ' + out[i].text + ' ' + out[i + 1].text; out.splice(i, 2); }
+  return out.filter(x => /[\p{L}\d]/u.test(x.text));
+}
+async function elFetch(text, prev, next, slow, first) {
+  const speed = slow ? Math.max(0.7, (TTS.speed || 0.85) - 0.15) : TTS.speed; // νούμερα/κωδικοί: πιο αργά
+  const body = (first ? '<break time="0.35s" /> ' : '') + elText(text, slow); // σιωπή μόνο στην αρχή της ανάγνωσης (iPhone)
+  const r = await SB.fn('tts', { text: body, speed, previous_text: String(prev || '').replace(/⏸/g, ','), next_text: String(next || '').replace(/⏸/g, ',') }, { raw: true }); return URL.createObjectURL(await r.blob()); }
 // Ακρόαση: μόλις ανοίξει, όλες οι απαντήσεις διαβάζονται μέχρι να πατηθεί «Κλείσιμο ακρόασης» (μένει αποθηκευμένη)
 AI.listen = (() => { try { return localStorage.getItem('mg-listen') !== '0'; } catch (e) { return true; } })(); // ανοιχτή από προεπιλογή
 function setListen(v) { AI.listen = v; try { localStorage.setItem('mg-listen', v ? '1' : '0'); } catch (e) {} }
@@ -97,12 +119,15 @@ function playUrl(url) {
 }
 async function speakInner(text, my) {
   if (!VOICE.elOk) return deviceSpeak(text);
-  const chunks = ttsChunks(text); if (!chunks.length) return;
+  const segs = ttsChunks(text).flatMap(segments).slice(0, 30); if (!segs.length) return;
+  const plain = x => x ? x.text : '';
+  const fetchSeg = i => elFetch(segs[i].text, plain(segs[i - 1]), plain(segs[i + 1]), segs[i].slow, i === 0);
   try {
-    let next = elFetch(chunks[0], '', chunks[1]);
-    for (let i = 0; i < chunks.length; i++) {
-      const url = await next; if (my !== VOICE.seq) { URL.revokeObjectURL(url); return; }
-      if (i + 1 < chunks.length) next = elFetch(chunks[i + 1], chunks[i], chunks[i + 2]);
+    const pend = []; const ensure = k => { for (let j = 0; j <= k && j < segs.length; j++) if (!pend[j]) { pend[j] = fetchSeg(j); pend[j].catch(() => {}); } };
+    ensure(2);
+    for (let i = 0; i < segs.length; i++) {
+      const url = await pend[i]; if (my !== VOICE.seq) { URL.revokeObjectURL(url); pend.slice(i + 1).forEach(p => p && p.then(u => URL.revokeObjectURL(u), () => {})); return; }
+      ensure(i + 3);
       VOICE.url = url; VOICE.audio = VOICE.el;
       await playUrl(url);
       URL.revokeObjectURL(url); VOICE.url = null; if (my !== VOICE.seq) return;
