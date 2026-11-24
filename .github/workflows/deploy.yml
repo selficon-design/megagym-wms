@@ -75,12 +75,9 @@ jobs:
         run: .github/scripts/step.sh supabase functions deploy --yes --project-ref "$PROJECT_REF"
 
   web:
-    name: Εφαρμογή (GitHub Pages)
+    name: Εφαρμογή (κατασκευή)
     needs: supabase
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -92,15 +89,24 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: SUPABASE_URL="https://$(printf '%s' "$REF" | tr -d '[:space:]').supabase.co" node web/build.mjs
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
+
+  pages:
+    name: Εφαρμογή (GitHub Pages)
+    needs: web
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
 
   check:
     name: Έλεγχος λειτουργίας
-    needs: web
+    needs: pages
     runs-on: ubuntu-latest
     env:
       REF: ${{ secrets.SUPABASE_PROJECT_REF }}
