@@ -21,9 +21,19 @@ function setTtsSpeed(v) { TTS.speed = Math.min(1.2, Math.max(0.7, v)); try { loc
 const speedLabel = () => (SPEEDS.reduce((b, s) => Math.abs(s[0] - TTS.speed) < Math.abs(b[0] - TTS.speed) ? s : b))[1];
 ACT.ttsSpeed = () => { const i = SPEEDS.findIndex(s => Math.abs(s[0] - TTS.speed) < 0.03); const n = SPEEDS[(i + 1) % SPEEDS.length]; setTtsSpeed(n[0]); toast('Ταχύτητα φωνής: ' + n[1]); if (TTS.on) ttsSpeak('Έτσι θα μιλάω. Κωδικός ΜG-00125.'); };
 // Κείμενο για ομιλία: οι κωδικοί διαβάζονται χαρακτήρα-χαρακτήρα με παύσεις, οι λίστες με παύση ανάμεσα
-const SAY_DIG = ['μηδέν', 'ένα', 'δύο', 'τρία', 'τέσσερα', 'πέντε', 'έξι', 'επτά', 'οκτώ', 'εννιά'];
+// Κωδικός για ομιλία: τα γράμματα ένα-ένα, οι αριθμοί ως αριθμοί (π.χ. MG-00125 → «M G 125», AR111 → «A R 111»)
 function sayCode(c) {
-  return c.split('').map(ch => /\d/.test(ch) ? SAY_DIG[+ch] : /[-_/.]/.test(ch) ? '' : ch.toUpperCase()).filter(Boolean).join(', ');
+  return (String(c).match(/\p{L}+|\d+/gu) || []).map(g => /^\d+$/.test(g) ? String(parseInt(g, 10)) : g.toUpperCase().split('').join(' ')).join(', ');
+}
+// οι πραγματικοί κωδικοί του καταλόγου (οι μεγαλύτεροι πρώτοι, ώστε να μη «σπάνε» σε μικρότερους)
+let _codeRe = null, _codeN = -1;
+function codeRegex() {
+  const codes = Object.values(S.prod || {}).map(p => String(p.code || '').trim()).filter(c => c.length >= 3 && c.length <= 16 && /\d/.test(c) && !/\s/.test(c) && !/^\d+(mm|cm|m|kg|w|v|watt)?$/i.test(c)); // σύντομοι, χωρίς κενά — όχι περιγραφές
+  if (_codeRe && codes.length === _codeN) return _codeRe;
+  _codeN = codes.length;
+  const esc = c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  _codeRe = codes.length ? new RegExp('(?<![\\p{L}\\d])(' + [...new Set(codes)].sort((a, b) => b.length - a.length).map(esc).join('|') + ')(?![\\p{L}\\d])', 'giu') : null;
+  return _codeRe;
 }
 function ttsPrepare(t) {
   let s = String(t || '');
@@ -32,11 +42,11 @@ function ttsPrepare(t) {
   // παραστατικά: ΕΙΣ-00012 → «εισαγωγή 12» (χωρίς τα μηδενικά)
   const DOC = { ΕΙΣ: 'εισαγωγή', ΠΑΡ: 'παραλαβή', ΤΟΠ: 'τοποθέτηση', ΕΠΓ: 'επιστροφή από γυμναστήριο', ΕΠΑ: 'επιστροφή σε αποθήκη', ΜΑΓ: 'μεταφορά σε αποθήκη γυμναστηρίου', ΜΕΤ: 'μεταφορά', ΜΟΧ: 'μεταφορά οχήματος', ΜΓΥ: 'μεταφορά από γυμναστήριο', ΕΠΞ: 'επεξεργασία', ΜΡΤ: 'μεταφορά ρεταλιών', ΚΑΤ: 'αλλαγή κατάστασης', ΑΠΣ: 'απόσυρση', ΑΠΓ: 'απογραφή' };
   s = s.replace(/(?<!\p{L})(ΕΙΣ|ΠΑΡ|ΤΟΠ|ΕΠΓ|ΕΠΑ|ΜΑΓ|ΜΕΤ|ΜΟΧ|ΜΓΥ|ΕΠΞ|ΜΡΤ|ΚΑΤ|ΑΠΣ|ΑΠΓ)-0*(\d+)/gu, (m, k, n) => DOC[k] + ' ' + n);
-  // κωδικοί προϊόντων: λέξεις με γράμματα ΚΑΙ ψηφία, ή με παύλα/κάθετο και ψηφία, ή 5+ ψηφία στη σειρά
-  s = s.replace(/(?<![\p{L}\d])(?=[\p{L}\d\-_/.]*\d)(?=[\p{L}\d\-_/.]*[\p{L}\-_/])[\p{L}\d][\p{L}\d\-_/.]*[\p{L}\d](?![\p{L}\d])|(?<![\d,.])\d{5,}(?![\d,]|\.\d)/gu, (m, off, str) => {
-    if (/^\d+(mm|cm|m|kg|w|v|watt)$/i.test(m) || /^\d+[xχ×]\d+/i.test(m)) return m; // διαστάσεις/μονάδες: κανονικά
+  // ΜΟΝΟ οι κωδικοί του καταλόγου διαβάζονται ως κωδικοί· ονόματα (π.χ. AR111) και αριθμοί διαβάζονται φυσικά
+  const re = codeRegex();
+  if (re) s = s.replace(re, (m, _g, off, str) => {
     const said = /κωδικ\p{L}*\s*:?\s*$/iu.test(str.slice(Math.max(0, off - 14), off)); // ήδη γράφει «κωδικός»
-    return (said ? ' … ' : ' … κωδικός ') + sayCode(m) + ' … ';
+    return (said ? ' ' : ' κωδικός ') + sayCode(m) + ' … ';
   });
   return s.replace(/\s*¶\s*/g, ' … ').replace(/\s+/g, ' ').trim();
 }
