@@ -51,6 +51,8 @@ const AI_SUGGEST = [
   'Βρες τη σημείωση για τα χαλασμένα φωτιστικά.',
 ];
 function mdLite(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^#{1,4}\s*(.+)$/gm, '<b>$1</b>'); }
+// το πεδίο μεγαλώνει όσο γράφετε/μιλάτε (έως ~40% της οθόνης, μετά κυλάει)
+function aiGrow(t) { if (!t) return; t.style.height = 'auto'; const max = Math.round(window.innerHeight * 0.4); t.style.height = Math.min(t.scrollHeight + 2, max) + 'px'; t.style.overflowY = t.scrollHeight > max ? 'auto' : 'hidden'; }
 function renderAi() {
   const box = $('#ai'); box.hidden = !AI.open; if (!AI.open) return;
   const unavailable = !sampleCap;
@@ -59,11 +61,13 @@ function renderAi() {
     <div class="aimsgs" id="aimsgs">${unavailable ? `<div class="warnbox">Ο AI Assistant δεν είναι διαθέσιμος αυτή τη στιγμή. Ελέγξτε τη σύνδεση και ανοίξτε ξανά την εφαρμογή.</div>` :
       (AI.items.length ? AI.items.map(aiItemHtml).join('') : `<div class="msg a">Γεια σας. Ρωτήστε με πώς γίνεται οποιαδήποτε εργασία στην εφαρμογή, ή για προϊόντα, αποθέματα, παραλαβές, τοποθετήσεις και σημειώσεις, ή δώστε μου εντολή να ετοιμάσω μια κίνηση. Κάθε ενέργεια εκτελείται μόνο αφού την επιβεβαιώσετε.</div>
         <div class="suggest">${AI_SUGGEST.map(s => `<button data-act="aiSuggest">${esc(s)}</button>`).join('')}</div>`)}</div>
-    <form class="aiform${typeof VOICE !== 'undefined' && VOICE.recording ? ' listening' : ''}" id="aiform"><textarea id="aiin" placeholder="${typeof VOICE !== 'undefined' && VOICE.recording ? 'Μιλήστε… τα λόγια σας γράφονται εδώ' : 'Γράψτε ή πατήστε το μικρόφωνο…'}" aria-label="Μήνυμα" ${unavailable ? 'disabled' : ''}>${esc(AI.draft || '')}</textarea>${micBtnHtml(unavailable)}
+    ${!unavailable && typeof voiceBarHtml === 'function' ? voiceBarHtml() : ''}
+    <form class="aiform${typeof VOICE !== 'undefined' && VOICE.recording ? ' listening' : ''}" id="aiform"><textarea id="aiin" rows="1" placeholder="${typeof VOICE !== 'undefined' && VOICE.recording ? 'Μιλήστε… τα λόγια σας γράφονται εδώ' : 'Γράψτε ή πατήστε το μικρόφωνο…'}" aria-label="Μήνυμα" ${unavailable ? 'disabled' : ''}>${esc(AI.draft || '')}</textarea>${micBtnHtml(unavailable)}
       ${AI.busy ? `<button type="button" class="btn" data-act="aiStop">Διακοπή</button>` : `<button class="btn pri send" aria-label="Αποστολή" title="Αποστολή" ${unavailable ? 'disabled' : ''}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>`}</form></div>`;
   const submit = () => { if (typeof VOICE !== 'undefined' && VOICE.recording) micStop(true); else { const v = $('#aiin').value; AI.draft = ''; aiSend(v); } };
   $('#aiform').onsubmit = e => { e.preventDefault(); submit(); };
-  $('#aiin').oninput = e => { AI.draft = e.target.value; };
+  $('#aiin').oninput = e => { AI.draft = e.target.value; aiGrow(e.target); };
+  aiGrow($('#aiin'));
   $('#aiin').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } };
   fillPhotos(box);
   const m = $('#aimsgs'); m.scrollTop = m.scrollHeight;
@@ -71,7 +75,7 @@ function renderAi() {
 function aiItemHtml(it) {
   if (it.k === 'u') return `<div class="msg u">${esc(it.text)}</div>`;
   if (it.k === 'a') { const last = it === [...AI.items].reverse().find(x => x.k === 'a' && x.text);
-    return `<div class="msg a">${mdLite(it.text || 'Σκέφτομαι…')}${typeof replayBtnHtml === 'function' && last && it.text && !AI.busy ? `<div style="margin-top:6px">${replayBtnHtml()}</div>` : ''}</div>`; }
+    return `<div class="msg a">${mdLite(it.text || 'Σκέφτομαι…')}</div>`; }
   if (it.k === 't') return `<div class="msg t">${esc(it.text)}</div>`;
   if (it.k === 'err') return `<div class="errbox">${esc(it.text)}</div>`;
   if (it.k === 'cards') return `<div class="pcards">${it.ids.filter(p => S.prod[p]).map(p => `<div class="pcard" data-act="aiGo" data-v="prod" data-a="${p}"><div class="ph2" ${S.prod[p].photo ? `data-ph="${p}"` : ''}>${S.prod[p].photo ? '' : '<span class="small">Χωρίς φωτο</span>'}</div><div class="t"><b>${esc(prodName(p))}</b><div class="mono muted">${esc(prodCode(p))}</div></div></div>`).join('')}</div>`;
@@ -533,7 +537,7 @@ function aiRules() {
 async function aiSend(text) {
   text = String(text || '').trim(); if (!text || AI.busy || !sampleCap) return;
   // ερώτηση από το μικρόφωνο → η απάντηση διαβάζεται αυτόματα
-  AI.speak = typeof VOICE !== 'undefined' && !!VOICE.fromMic; if (typeof VOICE !== 'undefined') VOICE.fromMic = false;
+  AI.speak = !!AI.listen; // «Ακρόαση» ανοιχτή → διαβάζεται· «Κλείσιμο ακρόασης» → μόνο γραπτά if (typeof VOICE !== 'undefined') VOICE.fromMic = false;
   AI.items.push({ k: 'u', text }); AI.turns.push({ role: 'user', content: text });
   const ans = { k: 'a', text: '' }; AI.items.push(ans);
   AI.busy = true; AI.ctl = new AbortController(); renderAi();

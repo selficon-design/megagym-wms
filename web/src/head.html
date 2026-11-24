@@ -246,8 +246,8 @@ tfoot td{font-weight:600;background:var(--surface2)}
 .msg.u{align-self:flex-end;background:var(--fg);color:var(--bg)}
 .msg.a{align-self:flex-start;background:var(--surface2);border:1px solid var(--line)}
 .msg.t{align-self:flex-start;font-size:.78rem;color:var(--muted);padding:2px 4px;background:none}
-.aiform{display:flex;gap:8px;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
-.aiform textarea{min-height:44px;height:44px;resize:none}
+.aiform{display:flex;align-items:flex-end;gap:8px;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
+.aiform textarea{min-height:44px;height:44px;resize:none;line-height:1.4;overflow-y:hidden;transition:height .08s}
 .propose{border:2px solid var(--fg);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface);align-self:stretch}
 .propose .pt{font:800 .95rem var(--f-display);letter-spacing:.05em;text-transform:uppercase}
 .pcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;align-self:stretch}
@@ -393,4 +393,10 @@ tfoot td{font-weight:600;background:var(--surface2)}
 /* βοηθός: βελάκι αποστολής, ζωντανή καταγραφή */
 .aiform .btn.send{min-width:46px;padding-inline:12px;border-radius:999px}
 .aiform.listening textarea{border-color:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
+
+.aivoice{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px 0;border-top:1px solid var(--line)}
+.aivoice + .aiform{border-top:0}
+.aivoice .vbtn{flex:1 1 auto;min-height:36px;padding:6px 10px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);font:600 .78rem var(--f-body);cursor:pointer;white-space:nowrap}
+.aivoice .vbtn.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.aivoice .vbtn:disabled{opacity:.45;cursor:default}
 </style>

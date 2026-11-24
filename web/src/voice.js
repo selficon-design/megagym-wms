@@ -57,8 +57,20 @@ function ttsChunks(t) {
   if (cur.trim()) out.push(cur.trim()); return out.slice(0, 8);
 }
 async function elFetch(text, prev, next) { const r = await SB.fn('tts', { text, speed: TTS.speed, previous_text: prev || '', next_text: next || '' }, { raw: true }); return URL.createObjectURL(await r.blob()); }
-function setPlaying(v) { if (VOICE.playing === v) return; VOICE.playing = v; const b = $('#aireplay'); if (b) b.outerHTML = replayBtnHtml(); }
-function replayBtnHtml() { return `<button type="button" class="btn sm ghost" id="aireplay" data-act="ttsReplay">${VOICE.playing ? '⏹ Διακοπή ανάγνωσης' : '↻ Επανάληψη απάντησης'}</button>`; }
+// Ακρόαση: μόλις ανοίξει, όλες οι απαντήσεις διαβάζονται μέχρι να πατηθεί «Κλείσιμο ακρόασης» (μένει αποθηκευμένη)
+AI.listen = (() => { try { return localStorage.getItem('mg-listen') !== '0'; } catch (e) { return true; } })(); // ανοιχτή από προεπιλογή
+function setListen(v) { AI.listen = v; try { localStorage.setItem('mg-listen', v ? '1' : '0'); } catch (e) {} }
+function setPlaying(v) { if (VOICE.playing === v) return; VOICE.playing = v; const b = $('#aivoice'); if (b) b.innerHTML = voiceBarInner(); }
+const lastAnswer = () => [...AI.items].reverse().find(x => x.k === 'a' && x.text);
+function voiceBarInner() {
+  const has = !!lastAnswer();
+  return `<button type="button" class="vbtn ${AI.listen ? 'on' : ''}" data-act="ttsListenOn" aria-pressed="${AI.listen}">🔊 Ακρόαση</button>
+    <button type="button" class="vbtn ${!AI.listen ? 'on' : ''}" data-act="ttsListenOff" aria-pressed="${!AI.listen}">🔇 Κλείσιμο ακρόασης</button>
+    <button type="button" class="vbtn" data-act="ttsReplay" ${has ? '' : 'disabled'}>${VOICE.playing ? '⏹ Διακοπή' : '↻ Επανάληψη ακρόασης'}</button>`;
+}
+function voiceBarHtml() { return `<div class="aivoice" id="aivoice" role="group" aria-label="Ακρόαση απαντήσεων">${voiceBarInner()}</div>`; }
+ACT.ttsListenOn = () => { setListen(true); const a = lastAnswer(); if (a && !VOICE.playing) ttsSpeak(a.text); else setPlaying(VOICE.playing); const b = $('#aivoice'); if (b) b.innerHTML = voiceBarInner(); };
+ACT.ttsListenOff = () => { setListen(false); ttsStop(); const b = $('#aivoice'); if (b) b.innerHTML = voiceBarInner(); };
 const _ttsStop = ttsStop; ttsStop = function () { _ttsStop(); setPlaying(false); };
 ttsSpeak = async function (text) {
   ttsStop(); const my = VOICE.seq; setPlaying(true);
@@ -87,7 +99,7 @@ async function speakInner(text, my) {
 // «Επανάληψη απάντησης» / «Διακοπή ανάγνωσης»: ένα κουμπί κάτω από την τελευταία απάντηση
 ACT.ttsReplay = () => {
   if (VOICE.playing) { ttsStop(); return; }
-  const last = [...AI.items].reverse().find(x => x.k === 'a' && x.text); if (last) ttsSpeak(last.text);
+  const last = lastAnswer(); if (last) ttsSpeak(last.text);
 };
 const _closeAi = ACT.closeAi; ACT.closeAi = () => { ttsStop(); micCancel(); _closeAi(); };
 
@@ -109,7 +121,7 @@ const joinTxt = (...a) => a.map(x => String(x || '').trim()).filter(Boolean).joi
 function liveShow() {
   const L = VOICE.live; if (!L) return;
   AI.draft = joinTxt(L.base, L.committed, L.partial);
-  const t = $('#aiin'); if (t) { t.value = AI.draft; t.scrollTop = t.scrollHeight; }
+  const t = $('#aiin'); if (t) { t.value = AI.draft; aiGrow(t); t.scrollTop = t.scrollHeight; }
 }
 function toPcm16B64(f32, inRate) {
   const ratio = inRate / 16000, n = Math.floor(f32.length / ratio), out = new Int16Array(n);
