@@ -23,12 +23,31 @@ function setTtsSpeed(v) { TTS.speed = Math.min(1.2, Math.max(0.45, v)); try { lo
 const apiSpeed = e => Math.min(1.2, Math.max(0.7, e));            // ό,τι στέλνεται στο ElevenLabs
 const playRate = e => Math.max(0.7, Math.min(1, e / apiSpeed(e))); // επιπλέον επιβράδυνση στη συσκευή
 const speedLabel = () => (SPEEDS.reduce((b, s) => Math.abs(s[0] - TTS.speed) < Math.abs(b[0] - TTS.speed) ? s : b))[1];
-ACT.ttsSpeed = () => { const i = SPEEDS.findIndex(s => Math.abs(s[0] - TTS.speed) < 0.03); const n = SPEEDS[(i + 1) % SPEEDS.length]; setTtsSpeed(n[0]);
-  ttsSpeak('Έτσι θα μιλάω. ' + n[1] + '. Κωδικός ZS-C2, σαράντα πέντε τεμάχια.'); }; // δείγμα με τη νέα ταχύτητα (πάντα, αφού το ζήτησε ο χρήστης)
+ACT.ttsSpeed = () => { const i = SPEEDS.findIndex(s => Math.abs(s[0] - TTS.speed) < 0.03); const n = SPEEDS[(i + 1) % SPEEDS.length]; setTtsSpeed(n[0]); applyRateNow(); };
+// η ανάγνωση που ήδη παίζει συνεχίζει από το ίδιο σημείο με τη νέα ταχύτητα
+function applyRateNow() { const el = VOICE.el, c = VOICE.cur; if (!el || !c || !VOICE.playing) return; const r = rateFor(c); el.playbackRate = r; el.defaultPlaybackRate = r; }
+const effFor = slow => slow ? Math.max(0.45, (TTS.speed || 0.6) * 0.85) : (TTS.speed || 0.6); // νούμερα/κωδικοί: 15% πιο αργά
+// ρυθμός αναπαραγωγής = επιθυμητή ταχύτητα / ταχύτητα με την οποία έφτιαξε τον ήχο το ElevenLabs
+const rateFor = c => Math.max(0.5, Math.min(2, effFor(c.slow) / (c.api || 1)));
 // Κείμενο για ομιλία: οι κωδικοί διαβάζονται χαρακτήρα-χαρακτήρα με παύσεις, οι λίστες με παύση ανάμεσα
 // Κωδικός για ομιλία: τα γράμματα ένα-ένα, οι αριθμοί ως αριθμοί (π.χ. MG-00125 → «M G 125», AR111 → «A R 111»)
+// ελληνική προφορά λατινικών γραμμάτων (η ελληνική φωνή δεν ξέρει να τα λέει μεμονωμένα, π.χ. «W»)
+const LAT = { A: 'έι', B: 'μπι', C: 'σι', D: 'ντι', E: 'ι', F: 'εφ', G: 'τζι', H: 'έιτς', I: 'άι', J: 'τζέι', K: 'κέι', L: 'ελ', M: 'εμ', N: 'εν', O: 'όου', P: 'πι', Q: 'κιου', R: 'αρ', S: 'ες', T: 'τι', U: 'γιου', V: 'βι', W: 'ντάμπλ γιου', X: 'εξ', Y: 'γουάι', Z: 'ζεντ' };
+const sayLetter = ch => LAT[ch.toUpperCase()] || ch;
+// λέξεις με συγκεκριμένη προφορά
+const SAYW = { watt: 'βατ', watts: 'βατ', led: 'λεντ', inox: 'ινόξ', par: 'παρ', rgb: 'αρ τζι μπι', rgbw: 'αρ τζι μπι ντάμπλ γιου', dkp: 'ντι κέι πι', usb: 'γιου ες μπι', wifi: 'γουάι φάι', 'wi-fi': 'γουάι φάι', tv: 'τι βι', mm: 'χιλιοστά', cm: 'εκατοστά', kg: 'κιλά', kw: 'κιλοβάτ', v: 'βολτ', ac: 'έι σι', dc: 'ντι σι', ok: 'οκέι', spot: 'σποτ', track: 'τρακ', strip: 'στριπ', tubes: 'τιουμπς', tube: 'τιουμπ', super: 'σούπερ', mirror: 'μίρορ', external: 'εξτέρναλ', outdoor: 'άουτντορ', indoor: 'ίντορ' };
 function sayCode(c) {
-  return (String(c).match(/\p{L}+|\d+/gu) || []).map(g => /^\d+$/.test(g) ? String(parseInt(g, 10)) : g.toUpperCase().split('').join(', ')).join(', ');
+  return (String(c).match(/\p{L}+|\d+/gu) || []).map(g => /^\d+$/.test(g) ? String(parseInt(g, 10)) : g.toUpperCase().split('').map(sayLetter).join(', ')).join(', ');
+}
+function sayLatin(s) {
+  // αριθμός + W / kW / V / mm κ.λπ. (π.χ. 200W → 200 βατ)
+  s = s.replace(/(\d)\s*(w|kw|v|mm|cm|kg)(?![\p{L}\d])/giu, (m, d, u) => d + ' ' + ({ w: 'βατ', kw: 'κιλοβάτ', v: 'βολτ', mm: 'χιλιοστά', cm: 'εκατοστά', kg: 'κιλά' })[u.toLowerCase()]);
+  return s.replace(/(?<![\p{L}\d])[A-Za-z][A-Za-z-]*(?![\p{L}\d])/g, w => {
+    const k = w.toLowerCase(); if (SAYW[k]) return SAYW[k];
+    if (w.length === 1) return sayLetter(w);                                                    // μεμονωμένο γράμμα
+    if (w.length <= 5 && w === w.toUpperCase() && !/[AEIOUY]/.test(w.replace(/^[A-Z]/, ''))) return w.split('').map(sayLetter).join(' '); // συντομογραφία χωρίς φωνήεντα (π.χ. DMX)
+    return w;                                                                                    // κανονική λέξη: τη λέει η φωνή
+  });
 }
 // οι πραγματικοί κωδικοί του καταλόγου (οι μεγαλύτεροι πρώτοι, ώστε να μη «σπάνε» σε μικρότερους)
 let _codeRe = null, _codeN = -1;
@@ -44,6 +63,7 @@ function ttsPrepare(t) {
   let s = String(t || '');
   s = s.replace(/^\s*(\d+)[.)]\s+/gm, '\n$1, '); // αριθμημένη λίστα: «1. Λάμπα» → «1, Λάμπα» (ο αριθμός διαβάζεται)
   s = s.replace(/^\s*[-•*]\s+/gm, '\n'); // κουκκίδες → νέα γραμμή (παύση)
+  s = s.replace(/(\d)\s*[xX×χΧ]\s*(?=\d)/g, '$1 επί '); // διαστάσεις: 1250X2500 → «1250 επί 2500»
   s = s.replace(/\s*(?:›|»|→|\||–|—|\s-\s|\s\/\s)\s*/g, ' ⁞ '); // διαχωριστικά (Είδος › Κατηγορία › Τύπος) → παύση
   s = ttsClean(s.replace(/\n+/g, ' ¶ '));
   // παραστατικά: ΕΙΣ-00012 → «εισαγωγή 12» (χωρίς τα μηδενικά)
@@ -60,6 +80,7 @@ function ttsPrepare(t) {
     (m, n, u) => /\d[^\d]+\d/.test(n.replace(/[.,]\d/g, '')) && /(,|και|-|έως|ως|μέχρι)/.test(n)
       ? ' ⟦' + n + (u || '') + '⟧ '            // σειρά αριθμών → αργό τμήμα
       : ' ˙ ' + n + (u || '') + ' ˙ ');        // μεμονωμένος αριθμός → μικρή παύση πριν και μετά
+  s = sayLatin(s);
   return s.replace(/\s*¶\s*/g, ' ⏸ ').replace(/…/g, ' ⏸ ').replace(/(\s*⏸\s*)+/g, ' ⏸ ').replace(/\s+/g, ' ').replace(/^\s*⏸\s*|\s*⏸\s*$/g, '').trim();
 }
 // Το κείμενο σπάει σε κομμάτια ώστε η ανάγνωση να ξεκινά γρήγορα
@@ -86,8 +107,7 @@ function segments(chunk) {
   return out.filter(x => /[\p{L}\d]/u.test(x.text));
 }
 async function elFetch(text, prev, next, slow, first) {
-  const eff = slow ? Math.max(0.45, (TTS.speed || 0.6) * 0.85) : (TTS.speed || 0.6); // νούμερα/κωδικοί: 15% πιο αργά
-  const speed = apiSpeed(eff); VOICE.rates = VOICE.rates || {}; VOICE.rates[text] = playRate(eff);
+  const speed = apiSpeed(effFor(slow)); VOICE.apis = VOICE.apis || {}; VOICE.apis[text] = speed;
   const body = (first ? '<break time="0.35s" /> ' : '') + elText(text, slow); // σιωπή μόνο στην αρχή της ανάγνωσης (iPhone)
   const r = await SB.fn('tts', { text: body, speed, previous_text: String(prev || '').replace(/⏸/g, ','), next_text: String(next || '').replace(/⏸/g, ',') }, { raw: true }); return URL.createObjectURL(await r.blob()); }
 // Ακρόαση: μόλις ανοίξει, όλες οι απαντήσεις διαβάζονται μέχρι να πατηθεί «Κλείσιμο ακρόασης» (μένει αποθηκευμένη)
@@ -139,7 +159,8 @@ async function speakInner(text, my) {
       const url = await pend[i]; if (my !== VOICE.seq) { URL.revokeObjectURL(url); pend.slice(i + 1).forEach(p => p && p.then(u => URL.revokeObjectURL(u), () => {})); return; }
       ensure(i + 3);
       VOICE.url = url; VOICE.audio = VOICE.el;
-      await playUrl(url, (VOICE.rates || {})[segs[i].text] || 1);
+      VOICE.cur = { slow: segs[i].slow, api: (VOICE.apis || {})[segs[i].text] || 1 };
+      await playUrl(url, rateFor(VOICE.cur));
       URL.revokeObjectURL(url); VOICE.url = null; if (my !== VOICE.seq) return;
     }
   } catch (e) {
