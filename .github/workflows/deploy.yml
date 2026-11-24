@@ -70,9 +70,9 @@ jobs:
           [ -n "$ELEVENLABS_API_KEY" ] && args+=("ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY")
           [ -n "$ELEVENLABS_VOICE_ID" ] && args+=("ELEVENLABS_VOICE_ID=$ELEVENLABS_VOICE_ID")
           [ -n "$AI_MODEL" ] && args+=("AI_MODEL=$AI_MODEL")
-          if [ ${#args[@]} -gt 0 ]; then .github/scripts/step.sh supabase secrets set --project-ref "$PROJECT_REF" "${args[@]}"; fi
+          if [ ${#args[@]} -gt 0 ]; then .github/scripts/step.sh supabase secrets set --yes --project-ref "$PROJECT_REF" "${args[@]}"; fi
       - name: Functions
-        run: .github/scripts/step.sh supabase functions deploy --project-ref "$PROJECT_REF"
+        run: .github/scripts/step.sh supabase functions deploy --yes --project-ref "$PROJECT_REF"
 
   web:
     name: Εφαρμογή (GitHub Pages)
