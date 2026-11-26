@@ -49,7 +49,7 @@ VIEWS.dash = () => {
     <div class="acts">
       ${[['imp', 'Εισαγωγή σε αποθήκη', 'Νέο φορτίο σε αποθήκη', 'wp'], ['load', 'Παραλαβή από αποθήκη', 'Φόρτωση στο αμάξι με λίστα', 'wp'], ['gymin', 'Εισαγωγή σε γυμναστήριο', 'Από αμάξι ή αποθήκη γυμναστηρίου', 'w'],
         ['gymsup', 'Εισαγωγή από προμηθευτή', 'Κατευθείαν εγκατάσταση στο γυμναστήριο', 's'], ['gymout', 'Μεταφορά από γυμναστήριο', 'Σε άλλο γυμναστήριο ή αποθήκη', 's'], ['retireg', 'Απόσυρση από γυμναστήριο', 'Οριστική αφαίρεση εγκατεστημένων', 's'],
-        ['proc', 'Επεξεργασία υλικού', 'Κοπή · κατανάλωση · ρετάλια', 'p'], ['mats', 'Υλικά & ρετάλια', 'Τι υπάρχει και πού', 'p'],
+        ['proc', 'Κατεργασία υλικού', 'Κοπή · κατανάλωση · ρετάλια', 'p'], ['mats', 'Υλικά & ρετάλια', 'Τι υπάρχει και πού', 'p'],
         ['ret', 'Επιστροφή', 'Από αμάξι σε αποθήκη', 'w'], ['vehs', 'Φορτίο αμαξιού', 'Τι υπάρχει στο αμάξι', 'wp'], ['invs', 'Απογραφή', 'Καταμέτρηση & διορθώσεις', 'w']]
         .filter(x => inMode(x[3])).map(([k, l, d]) => `<button class="act" data-go="${k}"><b>${l}</b><span>${d}</span></button>`).join('')}
       <button class="act ai" data-act="openAi"><b>AI Assistant</b><span>Ερωτήσεις & εντολές</span></button>
@@ -371,7 +371,7 @@ VIEWS.prod = id => {
         ${(() => { const gr = activeList(S.gym).map(([g, x]) => [g, x, gymProd(g, id)]).filter(([, , v]) => v.inst || v.stored);
           return gr.length ? `<div class="tw"><table><thead><tr><th>Γυμναστήριο</th><th class="r">Εγκατεστημένα</th><th class="r">Αποθηκευμένα</th></tr></thead><tbody>${gr.map(([g, x, v]) => `<tr class="click" data-go="gym" data-a="${g}"><td>${esc(x.name)}</td><td class="r">${fmtN(v.inst)}</td><td class="r">${fmtN(v.stored)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Δεν υπάρχει σε γυμναστήρια.</div>'; })()}</div>
     </div>
-    ${isMat(id) ? `<div class="panel"><div class="row" style="margin-bottom:8px"><h2 style="flex:1">Ρετάλια (${remsWhere({ p: id }).length})</h2>${can('move') ? `<button class="btn sm pri" data-act="matProc" data-p="${id}">Επεξεργασία</button>` : ''}</div>${remRows(remsWhere({ p: id }), { showMat: false })}</div>` : ''}
+    ${isMat(id) ? `<div class="panel"><div class="row" style="margin-bottom:8px"><h2 style="flex:1">Ρετάλια (${remsWhere({ p: id }).length})</h2>${can('move') ? `<button class="btn sm pri" data-act="matProc" data-p="${id}">Κατεργασία</button>` : ''}</div>${remRows(remsWhere({ p: id }), { showMat: false })}</div>` : ''}
     <div class="panel"><h2>Ιστορικό κινήσεων</h2>${movRows(hist, { showProd: id })}</div></div>`;
 };
 ACT.editProd = el => openProdEditor(el.dataset.id);

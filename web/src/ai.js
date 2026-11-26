@@ -57,7 +57,7 @@ function renderAi() {
   const box = $('#ai'); box.hidden = !AI.open; if (!AI.open) return;
   const unavailable = !sampleCap;
   box.innerHTML = `<div class="aipanel" role="dialog" aria-label="MEGA GYM AI"><div class="aihead"><span class="brand"><span class="mk">AI</span></span><b>MEGA GYM AI</b>
-    ${typeof speedLabel === 'function' ? `<button data-act="ttsSpeed" title="Ταχύτητα φωνής — πατήστε για αλλαγή">Ταχύτητα: ${speedLabel()}</button>` : ''}<button data-act="clearAi">Νέα συζήτηση</button><button data-act="closeAi" aria-label="Κλείσιμο">✕</button></div>
+    ${typeof speedLabel === 'function' ? `<button data-act="ttsSpeed" title="Ταχύτητα φωνής — πατήστε για αλλαγή">Ταχύτητα: ${speedLabel()}</button>` : ''}<button data-act="clearAi">Νέα συζήτηση</button><button class="aiwin" data-act="aiMin" aria-label="${AI.min ? 'Μεγιστοποίηση' : 'Ελαχιστοποίηση'}" title="${AI.min ? 'Μεγιστοποίηση' : 'Ελαχιστοποίηση — βλέπετε τι υπάρχει από πίσω'}">${AI.min ? '▢' : '—'}</button><button data-act="closeAi" aria-label="Κλείσιμο">✕</button></div>
     <div class="aimsgs" id="aimsgs">${unavailable ? `<div class="warnbox">Ο AI Assistant δεν είναι διαθέσιμος αυτή τη στιγμή. Ελέγξτε τη σύνδεση και ανοίξτε ξανά την εφαρμογή.</div>` :
       (AI.items.length ? AI.items.map(aiItemHtml).join('') : `<div class="msg a">Γεια σας. Ρωτήστε με πώς γίνεται οποιαδήποτε εργασία στην εφαρμογή, ή για προϊόντα, αποθέματα, παραλαβές, τοποθετήσεις και σημειώσεις, ή δώστε μου εντολή να ετοιμάσω μια κίνηση. Κάθε ενέργεια εκτελείται μόνο αφού την επιβεβαιώσετε.</div>
         <div class="suggest">${AI_SUGGEST.map(s => `<button data-act="aiSuggest">${esc(s)}</button>`).join('')}</div>`)}</div>
@@ -254,7 +254,7 @@ const AI_TOOLS = [
         recent: rr.sort((a, b) => b.ts - a.ts).slice(0, 15).map(r => ({ date: fmtD(r.ts), placement: S.pl[r.pl] ? S.pl[r.pl].docNo : '', gym: gymName(r.gym), product: prodName(r.p), qty: r.qty, unit: unitOf(r.p), old: oldText(r) || null, problem: r.reason || null })),
         tip: 'Για γραφήματα πρότεινε open_screen με screen=replacements.' };
     } },
-  { name: 'list_movements', description: 'Ιστορικό κινήσεων (νεότερες πρώτα). type: IMP εισαγωγή, LOAD φόρτωση, PLACE τοποθέτηση, INSTALL εγκατάσταση από αποθήκη, UNPLACE επιστροφή από γυμναστήριο, RETURN επιστροφή σε αποθήκη, TOGWH σε αποθήκη γυμναστηρίου, TRANSFER μεταφορά, VMOVE μεταφορά σε άλλο όχημα, SUPPLY εισαγωγή σε γυμναστήριο από προμηθευτή, GYM_MOVE μεταφορά από γυμναστήριο, PROCESS επεξεργασία υλικού, REM_MOVE μεταφορά ρεταλιών, REM_RETIRE απόσυρση ρεταλιών, STATUS αλλαγή κατάστασης, RETIRE απόσυρση από αποθήκη, RETIRE_V απόσυρση από αμάξι, RETIRE_G απόσυρση από γυμναστήριο, INV απογραφή.',
+  { name: 'list_movements', description: 'Ιστορικό κινήσεων (νεότερες πρώτα). type: IMP εισαγωγή, LOAD φόρτωση, PLACE τοποθέτηση, INSTALL εγκατάσταση από αποθήκη, UNPLACE επιστροφή από γυμναστήριο, RETURN επιστροφή σε αποθήκη, TOGWH σε αποθήκη γυμναστηρίου, TRANSFER μεταφορά, VMOVE μεταφορά σε άλλο όχημα, SUPPLY εισαγωγή σε γυμναστήριο από προμηθευτή, GYM_MOVE μεταφορά από γυμναστήριο, PROCESS κατεργασία υλικού, REM_MOVE μεταφορά ρεταλιών, REM_RETIRE απόσυρση ρεταλιών, STATUS αλλαγή κατάστασης, RETIRE απόσυρση από αποθήκη, RETIRE_V απόσυρση από αμάξι, RETIRE_G απόσυρση από γυμναστήριο, INV απογραφή.',
     inputSchema: { type: 'object', properties: { type: { type: 'string' }, product_id: { type: 'string' }, location_id: { type: 'string' }, date_from: { type: 'string' }, date_to: { type: 'string' }, limit: { type: 'number' } } },
     execute: i => {
       let l = S.mov.filter(m => m.state !== 'pending');
@@ -305,7 +305,7 @@ action:
 • retire_from_gym — απόσυρση εγκατεστημένων χωρίς αντικατάσταση (gym_id, reason)
 • supply_to_gym — εισαγωγή σε γυμναστήριο κατευθείαν από προμηθευτή (gym_id, supplier, lines, purpose new|repl όπως στο place· old_destination origin = αποθήκη του γυμναστηρίου)
 • move_from_gym — μεταφορά εγκατεστημένων από gym_id σε to_gym_id ή σε to_warehouse_id/to_section_id, condition good|used (lines ή all_remaining, reason)
-• process — επεξεργασία υλικού κατασκευής (κατανάλωση): product_id, source warehouse|vehicle|remnant (+ warehouse_id/section_id ή vehicle_id/pickup ή remnant_id), qty (ολόκληρα), reason = για τι χρησιμοποιήθηκε, remnants_left = [{dims, destination: same|warehouse|vehicle, warehouse_id, section_id}]
+• process — κατεργασία υλικού κατασκευής (κατανάλωση): product_id, source warehouse|vehicle|remnant (+ warehouse_id/section_id ή vehicle_id/pickup ή remnant_id), qty (ολόκληρα), reason = για τι χρησιμοποιήθηκε, remnants_left = [{dims, destination: same|warehouse|vehicle, warehouse_id, section_id}]
 • move_remnant — μεταφορά ρεταλιών (remnant_ids) σε to_warehouse_id/to_section_id ή to_vehicle_id
 • retire_remnant — απόσυρση ρεταλιών (remnant_ids, reason)
 • pickup δέχεται και remnant_ids: ρετάλια της ίδιας αποθήκης στην ίδια λίστα παραλαβής
@@ -492,10 +492,10 @@ function aiPropose(i) {
       }
       const out = (i.remnants_left || []).map(o => { let loc;
         if (o.destination === 'warehouse') { needWh(o.warehouse_id); loc = { t: 'W', wh: o.warehouse_id, sec: secOf(o.warehouse_id, o.section_id) }; }
-        else if (o.destination === 'vehicle') { if (!srcVeh) throw new Error('Ρετάλι στο αμάξι μόνο όταν η επεξεργασία γίνεται από αμάξι.'); loc = { t: 'V', veh: srcVeh }; }
+        else if (o.destination === 'vehicle') { if (!srcVeh) throw new Error('Ρετάλι στο αμάξι μόνο όταν η κατεργασία γίνεται από αμάξι.'); loc = { t: 'V', veh: srcVeh }; }
         else loc = defLoc || (srcVeh ? { t: 'V', veh: srcVeh } : null);
         if (!String(o.dims || '').trim()) throw new Error('Κάθε ρετάλι χρειάζεται διάσταση.'); return { dims: String(o.dims), note: o.note || '', loc }; });
-      op = { type: 'PROCESS', id: uid(), src, p, qty: src.t === 'R' ? 1 : (Number(i.qty) || 1), purpose: String(i.reason || ''), out }; title = `Επεξεργασία · ${prodName(p)}${out.length ? ' · ' + out.length + ' ρετάλι(α)' : ''}`; break; }
+      op = { type: 'PROCESS', id: uid(), src, p, qty: src.t === 'R' ? 1 : (Number(i.qty) || 1), purpose: String(i.reason || ''), out }; title = `Κατεργασία · ${prodName(p)}${out.length ? ' · ' + out.length + ' ρετάλι(α)' : ''}`; break; }
     case 'move_remnant': { const rr = (i.remnant_ids || []).map(String); if (!rr.length) throw new Error('Δώσε remnant_ids (list_remnants).');
       const to = i.to_vehicle_id ? { t: 'V', veh: i.to_vehicle_id } : (() => { needWh(i.to_warehouse_id); return { t: 'W', wh: i.to_warehouse_id, sec: secOf(i.to_warehouse_id, i.to_section_id) }; })();
       op = { type: 'REM_MOVE', id: uid(), rems: rr, to }; title = `Μεταφορά ${rr.length} ρεταλιών → ${to.t === 'V' ? vehName(to.veh) : whName(to.wh)}`; break; }
@@ -523,13 +523,13 @@ function aiRules() {
 5. ΑΝΤΙΚΑΤΑΣΤΑΣΗ: πριν το προσχέδιο ρώτα τι έγιναν τα παλιά (πετάχτηκαν επιτόπου / μεταχειρισμένα / κατεστραμμένα / προς έλεγχο — σύνολο ίσο με τα καινούργια), πού πάνε όσα επιστρέφουν (αποθήκη προέλευσης, αμάξι ή άλλη αποθήκη) και ποιο ήταν το πρόβλημα. Μη υποθέτεις «πέταμα».
 6. Καταστάσεις αποθέματος: Κανονικό, Μεταχειρισμένο, Κατεστραμμένο, Προς έλεγχο. «ΔΙΑΘΕΣΙΜΑ ΠΡΟΣ ΧΡΗΣΗ» = ΜΟΝΟ τα κανονικά (καλή κατάσταση) σε αποθήκες, αποθήκες γυμναστηρίων και τα καινούργια στα οχήματα — αυτό εννοεί ο χρήστης όταν ρωτά «πόσα έχουμε». Τα παλιά (μεταχειρισμένα, κατεστραμμένα, προς έλεγχο, παλιά στο αμάξι) και τα εγκατεστημένα σε γυμναστήρια ΔΕΝ είναι προς χρήση· ανέφερέ τα χωριστά μόνο αν ζητηθούν ή αν βοηθούν.
 7. Μην αθροίζεις διαφορετικές μονάδες μέτρησης. Ανέφερε πάντα μονάδα.
-8. Οι αριθμοί παραστατικών: ΜΓΥ μεταφορά από γυμναστήριο, ΕΠΞ επεξεργασία υλικού, ΜΡΤ μεταφορά ρεταλιών, ΕΙΣ εισαγωγή, ΠΑΡ παραλαβή, ΤΟΠ τοποθέτηση, ΕΠΓ επιστροφή από γυμναστήριο, ΕΠΑ επιστροφή σε αποθήκη, ΜΑΓ σε αποθήκη γυμναστηρίου, ΜΕΤ μεταφορά, ΜΟΧ μεταφορά σε άλλο όχημα, ΚΑΤ αλλαγή κατάστασης, ΑΠΣ απόσυρση, ΑΠΓ απογραφή. Ο χρήστης μπορεί να γράψει «00087» ή «87».
+8. Οι αριθμοί παραστατικών: ΜΓΥ μεταφορά από γυμναστήριο, ΕΠΞ κατεργασία υλικού, ΜΡΤ μεταφορά ρεταλιών, ΕΙΣ εισαγωγή, ΠΑΡ παραλαβή, ΤΟΠ τοποθέτηση, ΕΠΓ επιστροφή από γυμναστήριο, ΕΠΑ επιστροφή σε αποθήκη, ΜΑΓ σε αποθήκη γυμναστηρίου, ΜΕΤ μεταφορά, ΜΟΧ μεταφορά σε άλλο όχημα, ΚΑΤ αλλαγή κατάστασης, ΑΠΣ απόσυρση, ΑΠΓ απογραφή. Ο χρήστης μπορεί να γράψει «00087» ή «87».
 8α. ΥΠΑΓΟΡΕΥΣΗ: τα μηνύματα μπορεί να έχουν γραφτεί με φωνή και να έχουν λάθη αναγνώρισης (λάθος λέξεις που ακούγονται παρόμοια, χωρίς τόνους/στίξη). Ερμήνευσε τι εννοεί ο χρήστης με βάση τα ονόματα του καταλόγου, των αποθηκών, των γυμναστηρίων και των οχημάτων (π.χ. «τα τι ου» → ΤΑΤΟΙΟΥ). Αν δύο ερμηνείες είναι εξίσου πιθανές, ρώτα σύντομα.
 8β. ΦΩΝΗ: αν ο χρήστης ζητήσει να μιλάς πιο αργά/σιγά (ρυθμό) ή πιο γρήγορα, κάλεσε set_voice_speed — η αλλαγή μένει μόνιμη· μην προσπαθείς να «γράψεις πιο αργά». ${AI.speak ? 'Ο χρήστης ΜΙΛΗΣΕ και η απάντηση θα ΔΙΑΒΑΣΤΕΙ: γράφε σύντομες προτάσεις, ένα προϊόν ανά γραμμή, και τους κωδικούς χωριστά από το όνομα. Απόφευγε μεγάλους πίνακες· για πολλά αποτελέσματα πες τα 5 πρώτα και ρώτα αν θέλει τα υπόλοιπα.' : ''}
 9. Μπορείς να ανοίξεις οθόνες με open_screen (και screen=replacements για στατιστική με γραφήματα).
 10. Για ερωτήσεις χρήσης της εφαρμογής («πώς κάνω…», «πού είναι…») κάλεσε ΠΡΩΤΑ get_manual και απάντησε με αριθμημένα βήματα, χρησιμοποιώντας ακριβώς τα ονόματα μενού και κουμπιών του οδηγού. Μην επινοείς κουμπιά ή οθόνες.
 11. ΕΙΣΑΓΩΓΗ ΣΕ ΓΥΜΝΑΣΤΗΡΙΟ γίνεται με τρεις τρόπους: από αμάξι (place), από αποθήκη γυμναστηρίου (install), κατευθείαν από προμηθευτή (supply_to_gym). Μεταφορά εγκατεστημένων σε άλλο γυμναστήριο ή αποθήκη: move_from_gym — ρώτα αν είναι σε καλή κατάσταση ή μεταχειρισμένα.
-11β. Δύο ομάδες: «Έτοιμα προϊόντα» και «Υλικά κατασκευών» (δεν είναι είδος· κάτω τους υπάρχουν είδη υλικών, π.χ. ΜΕΤΑΛΛΑ – ΛΑΜΑΡΙΝΕΣ – INOX ΛΑΜΑΡΙΝΕΣ / DKP ΛΑΜΑΡΙΝΕΣ). Η ταξινόμηση πάει πάντα Είδος – Κατηγορία – Τύπος. ΥΛΙΚΑ ΚΑΤΑΣΚΕΥΩΝ (π.χ. λαμαρίνες): δεν τοποθετούνται, καταναλώνονται με «Επεξεργασία» (process). Ρώτα για τι χρησιμοποιήθηκε και αν έμεινε ρετάλι (διάσταση και πού μπαίνει). Τα ρετάλια είναι κομμάτι-κομμάτι με διάσταση (list_remnants) και μπαίνουν και σε λίστες παραλαβής (pickup με remnant_ids).
+11β. Δύο ομάδες: «Έτοιμα προϊόντα» και «Υλικά κατασκευών» (δεν είναι είδος· κάτω τους υπάρχουν είδη υλικών, π.χ. ΜΕΤΑΛΛΑ – ΛΑΜΑΡΙΝΕΣ – INOX ΛΑΜΑΡΙΝΕΣ / DKP ΛΑΜΑΡΙΝΕΣ). Η ταξινόμηση πάει πάντα Είδος – Κατηγορία – Τύπος. ΥΛΙΚΑ ΚΑΤΑΣΚΕΥΩΝ (π.χ. λαμαρίνες): δεν τοποθετούνται, καταναλώνονται με «Κατεργασία» (process). ΠΡΟΣΟΧΗ ΟΡΟΛΟΓΙΑ: «Κατεργασία υλικού» = κοπή/κατανάλωση υλικού (process)· «Επεξεργασία» = αλλαγή στοιχείων (προϊόντος, αποθήκης κ.λπ.). Αν ο χρήστης πει «επεξεργασία» για υλικό με την έννοια κοπής/κατανάλωσης, εννοεί κατεργασία — χρησιμοποίησε στις απαντήσεις τη λέξη «κατεργασία». Ρώτα για τι χρησιμοποιήθηκε και αν έμεινε ρετάλι (διάσταση και πού μπαίνει). Τα ρετάλια είναι κομμάτι-κομμάτι με διάσταση (list_remnants) και μπαίνουν και σε λίστες παραλαβής (pickup με remnant_ids).
 12. Απάντησε σε απλό κείμενο με κουκκίδες «•» όπου χρειάζεται, χωρίς πίνακες markdown. Απάντα στη γλώσσα που σου γράφει ο χρήστης (προεπιλογή ελληνικά)· τα ονόματα κουμπιών αναφέρονται όπως φαίνονται στην οθόνη.
 Τρέχουσα ημερομηνία και ώρα: ${new Intl.DateTimeFormat('el-GR', { dateStyle: 'full', timeStyle: 'short' }).format(now)} (ISO ${now.toISOString().slice(0, 10)}, ώρα Ελλάδας).
 Χρήστης: ${S.me.name || 'χρήστης'}, ρόλος ${ROLE_LABEL[S.me.role]}${S.me.whs.length ? ', περιορισμένος στις αποθήκες ' + S.me.whs.map(whName).join(', ') : ''}. ${S.me.role === 'viewer' ? 'Ο ρόλος Viewer δεν επιτρέπει ενέργειες· εξήγησέ το αν ζητηθεί.' : ''}`;
@@ -560,3 +560,32 @@ async function aiSend(text) {
     if (ans.text) AI.turns.push({ role: 'assistant', content: ans.text });
   } finally { AI.busy = false; AI.ctl = null; renderAi(); }
 }
+
+/* ---------- Υπολογιστής: το παράθυρο του AI μετακινείται (σύρσιμο από τη μπάρα) και ελαχιστοποιείται ----------
+   Διπλό κλικ στη μπάρα → επιστρέφει δεξιά. Η θέση μένει αποθηκευμένη σε αυτή τη συσκευή. */
+const aiDesk = () => innerWidth >= 900 && matchMedia('(pointer:fine)').matches;
+AI.pos = (() => { try { return JSON.parse(localStorage.getItem('mg-ai-pos') || 'null'); } catch (e) { return null; } })();
+AI.min = false;
+const aiSavePos = () => { try { localStorage.setItem('mg-ai-pos', JSON.stringify(AI.pos)); } catch (e) {} };
+function aiPlace() {
+  const p = document.querySelector('#ai .aipanel'); if (!p) return;
+  const desk = aiDesk(); p.classList.toggle('min', !!AI.min && desk); p.classList.toggle('float', !!AI.pos && desk);
+  if (AI.pos && desk) {
+    const w = p.offsetWidth, h = AI.min ? 54 : Math.min(innerHeight * 0.8, 760);
+    AI.pos.l = Math.max(0, Math.min(innerWidth - Math.min(w, 200), AI.pos.l)); AI.pos.t = Math.max(0, Math.min(innerHeight - 50, AI.pos.t));
+    p.style.left = AI.pos.l + 'px'; p.style.top = AI.pos.t + 'px'; p.style.height = AI.min ? '' : h + 'px';
+  } else { p.style.left = p.style.top = p.style.height = ''; }
+  const hd = p.querySelector('.aihead'); if (!hd || !desk) return;
+  hd.ondblclick = e => { if (e.target.closest('button')) return; AI.pos = null; aiSavePos(); aiPlace(); };
+  hd.onpointerdown = e => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    const r = p.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top; let moved = false;
+    const mv = ev => { if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return; moved = true;
+      AI.pos = { l: ev.clientX - dx, t: ev.clientY - dy }; aiPlace(); };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); if (moved) aiSavePos(); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); e.preventDefault();
+  };
+}
+ACT.aiMin = () => { AI.min = !AI.min; renderAi(); if (!AI.min) setTimeout(() => { const t = $('#aiin'); if (t) t.focus(); }, 30); };
+{ const _r = renderAi; renderAi = function () { _r.apply(this, arguments); aiPlace(); }; }
+addEventListener('resize', () => { if (AI.open) aiPlace(); });

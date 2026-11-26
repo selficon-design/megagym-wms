@@ -249,11 +249,11 @@ const REPORTS = {
     const rows = remsWhere(f.wh ? { wh: f.wh } : {}).map(([, r]) => [prodCode(r.p), prodName(r.p), r.dims, remLoc(r), fmtD(r.ts), (S.movById[r.mov] || {}).docNo || '', r.note || '']);
     return { title: 'Ρετάλια σε απόθεμα' + (f.wh ? ' · ' + whName(f.wh) : ''), cols: ['Κωδικός', 'Υλικό', 'Διάσταση', 'Θέση', 'Ημερομηνία', 'Από', 'Σημείωση'], num: [], rows };
   } },
-  proc: { label: 'Επεξεργασίες υλικών', filters: ['from', 'to'], build(f) {
+  proc: { label: 'Κατεργασίες υλικών', filters: ['from', 'to'], build(f) {
     const a = f.from ? new Date(f.from + 'T00:00').getTime() : 0, b = f.to ? new Date(f.to + 'T23:59:59').getTime() : Infinity;
     const rows = S.mov.filter(m => m.type === 'PROCESS' && m.state !== 'pending' && m.ts >= a && m.ts <= b).map(m => { const l = m.lines[0];
       return [fmtD(m.ts), m.docNo, prodCode(l.p), prodName(l.p), l.src === 'rem' ? 'Ρετάλι ' + l.dims : 'Ολόκληρα', l.src === 'rem' ? 1 : l.qty, unitOf(l.p), m.purpose || '', (l.out || []).map(o => o.dims + ' → ' + remLocText(o.loc)).join('; '), uname(m.by)]; });
-    return { title: 'Επεξεργασίες υλικών', cols: ['Ημερομηνία', 'Παραστατικό', 'Κωδικός', 'Υλικό', 'Τι', 'Ποσότητα', 'Μονάδα', 'Για τι', 'Ρετάλια που έμειναν', 'Χρήστης'], num: [5], rows, unitCol: 6 };
+    return { title: 'Κατεργασίες υλικών', cols: ['Ημερομηνία', 'Παραστατικό', 'Κωδικός', 'Υλικό', 'Τι', 'Ποσότητα', 'Μονάδα', 'Για τι', 'Ρετάλια που έμειναν', 'Χρήστης'], num: [5], rows, unitCol: 6 };
   } },
   byGym: { label: 'Ανά γυμναστήριο (εγκατεστημένα & αποθηκευμένα)', filters: ['gym', 'cat'], build(f) {
     const gs = f.gym ? [f.gym] : Object.keys(S.gym); const rows = [];
@@ -488,7 +488,7 @@ ACT.editCat = el => {
     openModal(`${mhead(id ? 'Επεξεργασία είδους' : 'Νέο είδος', 'Είδος → Κατηγορία → Τύπος. Ισχύει για όλες τις αποθήκες, τα οχήματα και τα γυμναστήρια. Η μετονομασία και η απενεργοποίηση δεν επηρεάζουν το ιστορικό.')}
       <div class="f"><label for="cn">Είδος</label><input type="text" id="cn" value="${esc(c.name)}" placeholder="π.χ. Ηλεκτρολογικός εξοπλισμός"></div>
       <label class="check"><input type="checkbox" id="cact" ${c.active !== false ? 'checked' : ''}> Ενεργό</label>
-      <label class="check"><input type="checkbox" id="cmat" ${c.mat ? 'checked' : ''}> Είδος υλικών κατασκευών — όλα τα προϊόντα του είναι υλικά (επεξεργασία & ρετάλια)</label>
+      <label class="check"><input type="checkbox" id="cmat" ${c.mat ? 'checked' : ''}> Είδος υλικών κατασκευών — όλα τα προϊόντα του είναι υλικά (κατεργασία & ρετάλια)</label>
       <span class="lbl">Κατηγορίες και τύποι (προαιρετικά)</span>
       <div class="list">${c.subs.map((s, i) => `<div class="panel" style="padding:12px;display:flex;flex-direction:column;gap:8px">
         <div class="row"><input type="text" data-sn="${i}" value="${esc(s.name)}" style="flex:1;min-width:140px;font-weight:600" placeholder="π.χ. Φώτα" aria-label="Κατηγορία"><label class="check"><input type="checkbox" data-sa="${i}" ${s.active !== false ? 'checked' : ''}> Ενεργή</label><button class="iconbtn" data-dels="${i}" aria-label="Διαγραφή κατηγορίας" title="Διαγραφή κατηγορίας">✕</button></div>

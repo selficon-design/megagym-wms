@@ -239,6 +239,13 @@ tfoot td{font-weight:600;background:var(--surface2)}
 @media (max-width:899px){.aifab{bottom:calc(84px + env(safe-area-inset-bottom,0px));padding:12px 14px}.aifab .l{display:none}.aifab .s{display:inline}}
 .aipanel{position:fixed;z-index:85;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--surface);border-left:1px solid var(--line);box-shadow:var(--shadow);
   display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.aipanel.float{right:auto;bottom:auto;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.aipanel.min{height:auto!important;bottom:auto}
+.aipanel.min:not(.float){top:auto;bottom:16px;right:16px;width:min(380px,100%);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.aipanel.min>:not(.aihead){display:none!important}
+.aipanel.min .aihead button:not(.aiwin):not([data-act=closeAi]){display:none}.aipanel.min .aihead b{white-space:nowrap}
+@media (min-width:900px) and (pointer:fine){.aihead{cursor:move;user-select:none}.aihead button{cursor:pointer}}
+@media (max-width:899px),(pointer:coarse){.aiwin{display:none}}
 .aihead{background:var(--bar);color:var(--bar-fg);padding:14px 16px;display:flex;align-items:center;gap:10px}
 .aihead b{font:800 1rem var(--f-display);letter-spacing:.08em;flex:1}
 .aihead button{background:none;border:1px solid #444;color:#eee;border-radius:4px;padding:5px 9px;cursor:pointer;font-size:.8rem}

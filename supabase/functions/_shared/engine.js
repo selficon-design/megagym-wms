@@ -32,7 +32,7 @@ const ENG = (() => {
     RETIRE_V: { label: 'Απόσυρση από αμάξι', pre: 'ΑΠΣ' },
     INV: { label: 'Απογραφή', pre: 'ΑΠΓ' },
     VMOVE: { label: 'Μεταφορά σε άλλο όχημα', pre: 'ΜΟΧ' },
-    PROCESS: { label: 'Επεξεργασία υλικού', pre: 'ΕΠΞ' },
+    PROCESS: { label: 'Κατεργασία υλικού', pre: 'ΕΠΞ' },
     GYM_MOVE: { label: 'Μεταφορά από γυμναστήριο', pre: 'ΜΓΥ' },
     SUPPLY: { label: 'Εισαγωγή σε γυμναστήριο από προμηθευτή', pre: 'ΤΟΠ' },
     REM_MOVE: { label: 'Μεταφορά ρεταλιών', pre: 'ΜΡΤ' },
@@ -335,12 +335,12 @@ const ENG = (() => {
         (op.out || []).forEach((o, k) => { const dims = String(o.dims || '').trim(); if (!dims) fail('Συμπληρώστε τη διάσταση κάθε ρεταλιού.');
           let loc;
           if (o.loc && o.loc.t === 'W') { needWh(o.loc.wh); loc = { t: 'W', wh: o.loc.wh, sec: o.loc.sec || DEF_SEC }; }
-          else if (o.loc && o.loc.t === 'V') { if (!srcVeh && !o.loc.veh) fail('Ρετάλι στο αμάξι γίνεται μόνο όταν η επεξεργασία γίνεται από αμάξι.'); loc = { t: 'V', veh: o.loc.veh || srcVeh, pk: srcPk }; needVeh(loc.veh); }
+          else if (o.loc && o.loc.t === 'V') { if (!srcVeh && !o.loc.veh) fail('Ρετάλι στο αμάξι γίνεται μόνο όταν η κατεργασία γίνεται από αμάξι.'); loc = { t: 'V', veh: o.loc.veh || srcVeh, pk: srcPk }; needVeh(loc.veh); }
           else fail('Ορίστε πού μπαίνει κάθε ρετάλι.');
           const rid = op.id + '_' + k; docs['rem/' + rid] = { p, dims, loc, status: 'stock', ts: ctx.now, by: ctx.user, mov: op.id, parent: s.t === 'R' ? s.rem : null, note: String(o.note || '').slice(0, 200) };
           out.push({ rem: rid, dims, loc }); });
         mov.lines[0].out = out; mov.purpose = String(op.purpose || '').slice(0, 300); mov.note = mov.note || mov.purpose;
-        mov.from = from; mov.to = { t: 'OUT', name: 'Επεξεργασμένα' }; mov.refs.rems = out.map(o => o.rem).concat(s.t === 'R' ? [s.rem] : []);
+        mov.from = from; mov.to = { t: 'OUT', name: 'Κατεργασμένα' }; mov.refs.rems = out.map(o => o.rem).concat(s.t === 'R' ? [s.rem] : []);
         break;
       }
       case 'REM_MOVE': {

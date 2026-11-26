@@ -1,5 +1,5 @@
 /* ================================================================
-   ΥΛΙΚΑ ΚΑΤΑΣΚΕΥΩΝ: επεξεργασία (κατανάλωση), ρετάλια κομμάτι-κομμάτι
+   ΥΛΙΚΑ ΚΑΤΑΣΚΕΥΩΝ: κατεργασία (κατανάλωση), ρετάλια κομμάτι-κομμάτι
    ================================================================ */
 const matIds = (withStockOnly) => sortProds(Object.keys(S.prod).filter(p => isMat(p) && !S.prod[p].deleted && (!withStockOnly || prodTotals(p).all > 0 || remsWhere({ p }).length || S.prod[p].active !== false)));
 // επιλογές προορισμού: όλες οι αποθήκες/χώροι (ομαδοποιημένες) και, προαιρετικά, οχήματα
@@ -12,14 +12,14 @@ function locOptions(cur, { veh = null, vehicles = false } = {}) {
 }
 const parseLoc = k => { const s = k.split('|'); return s[0] === 'V' ? { t: 'V', veh: s[1] } : { t: 'W', wh: s[1], sec: s[2] }; };
 
-/* ---------------- Επεξεργασία υλικού ---------------- */
+/* ---------------- Κατεργασία υλικού ---------------- */
 VIEWS.proc = a => {
   const f = S.procF = S.procF || { p: '', src: 'W', wh: '', sec: '', veh: '', lot: '', rem: '', qty: 1, purpose: '', out: [] };
   if (a && f._a !== a) { f._a = a; const [t, id] = a.split(':');
     if (t === 'R' && S.rem[id]) { f.p = S.rem[id].p; f.src = 'R'; f.rem = id; f.out = []; }
     if (t === 'P' && S.prod[id]) { f.p = id; f.src = 'W'; f.out = []; } }
   const mats = matIds(true);
-  if (!mats.length) return `<div class="wrap">${pageHead('Υλικά κατασκευών', 'Επεξεργασία υλικού')}<div class="panel empty">Δεν υπάρχουν υλικά. Καταχωρίστε ένα προϊόν ως «Υλικό κατασκευής» στον Γενικό πίνακα ή στα <a data-go="mats">Υλικά & ρετάλια</a>.</div></div>`;
+  if (!mats.length) return `<div class="wrap">${pageHead('Υλικά κατασκευών', 'Κατεργασία υλικού')}<div class="panel empty">Δεν υπάρχουν υλικά. Καταχωρίστε ένα προϊόν ως «Υλικό κατασκευής» στον Γενικό πίνακα ή στα <a data-go="mats">Υλικά & ρετάλια</a>.</div></div>`;
   if (!S.prod[f.p] || !isMat(f.p)) f.p = mats.find(p => prodTotals(p).all || remsWhere({ p }).length) || mats[0];
   const p = f.p; const U = unitOf(p);
   // πηγές
@@ -45,11 +45,11 @@ VIEWS.proc = a => {
     fillPhotos($('#main'));
   });
   const x = S.prod[p];
-  return `<div class="wrap">${pageHead('Υλικά κατασκευών · κατανάλωση', 'Επεξεργασία υλικού', `<button class="btn" data-go="mats">Υλικά & ρετάλια</button>`)}
-    <div class="hint">Το υλικό που επεξεργάζεστε φεύγει από το απόθεμα και καταγράφεται στα «Επεξεργασμένα». Ό,τι περισσέψει καταχωρίζεται ως ρετάλι με τη διάστασή του και μπορεί να ξαναχρησιμοποιηθεί.</div>
+  return `<div class="wrap">${pageHead('Υλικά κατασκευών · κατανάλωση', 'Κατεργασία υλικού', `<button class="btn" data-go="mats">Υλικά & ρετάλια</button>`)}
+    <div class="hint">Το υλικό που κατεργάζεστε φεύγει από το απόθεμα και καταγράφεται στα «Κατεργασμένα». Ό,τι περισσέψει καταχωρίζεται ως ρετάλι με τη διάστασή του και μπορεί να ξαναχρησιμοποιηθεί.</div>
     <div class="panel"><div class="row" style="gap:14px;align-items:center">${thumb(p)}<div class="f" style="flex:1;min-width:220px"><label for="prp">Υλικό</label><select id="prp">${(() => { const g = {}; mats.forEach(k => (g[catLabel(k) || 'Χωρίς κατηγορία'] = g[catLabel(k) || 'Χωρίς κατηγορία'] || []).push(k)); return Object.keys(g).sort((a, b) => a.localeCompare(b, 'el')).map(c => `<optgroup label="${esc(c)}">${g[c].map(k => opt(k, `${prodName(k)}${S.prod[k].dims ? ' · ' + S.prod[k].dims : ''}${prodTotals(k).W + prodTotals(k).V ? '' : ' (χωρίς απόθεμα)'}`, k === p)).join('')}</optgroup>`).join(''); })()}</select></div></div>
       <div class="small muted" style="margin-top:6px">${x.dims ? 'Ολόκληρο: ' + esc(x.dims) + ' · ' : ''}Σε αποθήκες: <b>${fmtN(prodTotals(p).W)}</b> ${esc(U)} · σε οχήματα: <b>${fmtN(prodTotals(p).V)}</b> · ρετάλια: <b>${rems.length}</b></div></div>
-    <div class="panel"><span class="lbl">Τι επεξεργάζεστε</span>
+    <div class="panel"><span class="lbl">Τι κατεργάζεστε</span>
       <div class="chips" style="margin:6px 0 12px"><button class="chip ${f.src === 'W' ? 'on' : ''}" data-act="procSrc" data-v="W">Ολόκληρο από αποθήκη</button><button class="chip ${f.src === 'V' ? 'on' : ''}" data-act="procSrc" data-v="V">Ολόκληρο από αμάξι</button><button class="chip ${f.src === 'R' ? 'on' : ''}" data-act="procSrc" data-v="R">Ρετάλι (${rems.length})</button></div>
       ${f.src === 'W' ? (whs.length ? `<div class="fields"><div class="f"><label for="prwh">Αποθήκη</label><select id="prwh">${whOpts(f.wh, { filter: w => whs.some(([k]) => k === w) })}</select></div>
           ${hasSections(f.wh) ? `<div class="f"><label for="prsec">Χώρος</label><select id="prsec">${allSections(f.wh).filter(s => whAvail(p, f.wh, s.id, 'N') > 0).map(s => opt(s.id, `${s.name} (${fmtN(whAvail(p, f.wh, s.id, 'N'))})`, s.id === f.sec)).join('')}</select></div>` : ''}
@@ -66,7 +66,7 @@ VIEWS.proc = a => {
         <button class="btn sm ghost" data-act="procDelOut" data-i="${i}" aria-label="Αφαίρεση">✕</button></div>`).join('') : '<div class="muted small">Δεν έμεινε ρετάλι. Αν περίσσεψε κομμάτι που κρατάτε, πατήστε «+ Ρετάλι» και γράψτε τη διάστασή του.</div>'}
     </div>
     <div class="cartbar wrapbar"><div class="sum">${f.src === 'R' ? (f.rem ? `Ρετάλι <b>${esc(S.rem[f.rem].dims)}</b>` : 'Επιλέξτε ρετάλι') : `<b>${fmtN(f.qty || 0)}</b> ${esc(U)}`} · ${f.out.length ? f.out.length + ' ρετάλι(α) μένουν' : 'χωρίς ρετάλι'}</div>
-      ${can('move') ? `<button class="btn pri" data-act="procGo" ${avail ? '' : 'disabled'}>Καταχώριση επεξεργασίας</button>` : ''}</div>
+      ${can('move') ? `<button class="btn pri" data-act="procGo" ${avail ? '' : 'disabled'}>Καταχώριση κατεργασίας</button>` : ''}</div>
   </div>`;
 };
 ACT.procSrc = el => { S.procF.src = el.dataset.v; S.procF.out.forEach(o => o.dest = ''); render(true); };
@@ -78,7 +78,7 @@ ACT.procGo = () => {
   let src; if (f.src === 'W') src = { t: 'W', wh: f.wh, sec: f.sec }; else if (f.src === 'V') { const [veh, pk, li] = f.lot.split('|'); src = { t: 'V', veh, pk, li: pk === 'ADJ' ? li : Number(li) }; } else src = { t: 'R', rem: f.rem };
   if (f.out.some(o => !String(o.dims || '').trim())) return toast('Συμπληρώστε τη διάσταση κάθε ρεταλιού ή αφαιρέστε τη γραμμή.', true);
   const op = { type: 'PROCESS', id: uid(), src, p: f.p, qty: f.src === 'R' ? 1 : f.qty, purpose: f.purpose, out: f.out.map(o => ({ dims: o.dims, note: o.note || '', loc: parseLoc(o.dest) })) };
-  confirmOp(op, { title: 'Επεξεργασία υλικού', intro: `<div class="small">${f.purpose ? 'Για: <b>' + esc(f.purpose) + '</b> · ' : ''}Το υλικό φεύγει από το απόθεμα.${f.out.length ? ' Δημιουργούνται ' + f.out.length + ' ρετάλι(α).' : ''}</div>`,
+  confirmOp(op, { title: 'Κατεργασία υλικού', intro: `<div class="small">${f.purpose ? 'Για: <b>' + esc(f.purpose) + '</b> · ' : ''}Το υλικό φεύγει από το απόθεμα.${f.out.length ? ' Δημιουργούνται ' + f.out.length + ' ρετάλι(α).' : ''}</div>`,
     onDone: () => { S.procF = Object.assign(S.procF, { out: [], purpose: '', qty: 1, rem: '', _a: S.procF._a }); render(true); } });
 };
 
@@ -139,7 +139,7 @@ VIEWS.mats = () => {
       return gh + `<div class="panel matcard"><div class="row" style="gap:12px;align-items:flex-start">${thumb(p)}<div style="flex:1;min-width:0"><a data-go="prod" data-a="${p}"><b>${esc(x.name)}</b></a> <span class="mono small muted">${esc(x.code)}</span>${x.active === false ? ' <span class="tag g">Ανενεργό</span>' : ''}
           ${x.dims ? `<div class="small muted">Ολόκληρο: ${esc(x.dims)}</div>` : ''}
           <div class="small" style="margin-top:4px">Ολόκληρα: <b>${fmtN(t.W + t.V)}</b> ${esc(x.unit)}${byWh.length ? ' <span class="muted">(' + byWh.map(([n, q]) => esc(n) + ' ' + fmtN(q)).join(' · ') + (t.V ? ' · οχήματα ' + fmtN(t.V) : '') + ')</span>' : ''} · Ρετάλια: <b>${rs.length}</b></div></div>
-        <div class="btns">${can('move') ? `<button class="btn sm pri" data-act="matProc" data-p="${p}">Επεξεργασία</button>` : ''}${can('move') ? `<button class="btn sm" data-act="distrib" data-p="${p}">+ Ποσότητες</button>` : ''}</div></div>
+        <div class="btns">${can('move') ? `<button class="btn sm pri" data-act="matProc" data-p="${p}">Κατεργασία</button>` : ''}${can('move') ? `<button class="btn sm" data-act="distrib" data-p="${p}">+ Ποσότητες</button>` : ''}</div></div>
         ${rs.length ? `<details style="margin-top:8px" ${rs.length <= 6 ? 'open' : ''}><summary class="small">Ρετάλια (${rs.length})</summary>${remRows(rs, { showMat: false })}</details>` : ''}</div>`; }).join('')
     : `<div class="panel empty">Δεν υπάρχουν υλικά. ${can('product_create') ? 'Πατήστε «+ Νέο υλικό».' : ''}</div>`;
   if (f.tab === 'rem') { const rs = remsWhere(f.wh ? (f.wh.startsWith('V|') ? { veh: f.wh.slice(2) } : { wh: f.wh }) : {}).filter(([, r]) => ids.includes(r.p)).sort((a, b) => ids.indexOf(a[1].p) - ids.indexOf(b[1].p));
@@ -150,15 +150,15 @@ VIEWS.mats = () => {
     const ms = S.mov.filter(m => m.type === 'PROCESS' && m.state !== 'pending' && m.ts >= since && (!filtered || ids.includes(m.lines[0].p)));
     const sum = {}; ms.forEach(m => { const l = m.lines[0]; const k = l.p; const o = sum[k] = sum[k] || { full: 0, rem: 0, out: 0, n: 0 }; o.n++; if (l.src === 'rem') o.rem++; else o.full += l.qty; o.out += (l.out || []).length; });
     body = `<div class="chips" style="margin-bottom:10px">${[['1m', 'Μήνας'], ['3m', '3 μήνες'], ['12m', '12 μήνες'], ['all', 'Όλα']].map(([k, l]) => `<button class="chip ${f.per === k ? 'on' : ''}" data-act="matsPer" data-v="${k}">${l}</button>`).join('')}</div>
-      <div class="panel"><h2>Κατανάλωση ανά υλικό</h2>${Object.keys(sum).length ? `<div class="tw"><table><thead><tr><th>Υλικό</th><th class="r">Ολόκληρα</th><th class="r">Ρετάλια που χρησιμοποιήθηκαν</th><th class="r">Νέα ρετάλια</th><th class="r">Επεξεργασίες</th></tr></thead><tbody>
-        ${Object.entries(sum).sort((a, b) => b[1].full - a[1].full).map(([p, o]) => `<tr class="click" data-go="prod" data-a="${p}"><td><b>${esc(prodName(p))}</b></td><td class="r"><b>${qtyU(o.full, p)}</b></td><td class="r">${fmtN(o.rem)}</td><td class="r">${fmtN(o.out)}</td><td class="r">${fmtN(o.n)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Καμία επεξεργασία στο διάστημα.</div>'}</div>
-      <div class="panel"><h2>Επεξεργασμένα (αναλυτικά)</h2>${ms.length ? `<div class="tw"><table><thead><tr><th>Ημερομηνία</th><th>Παραστατικό</th><th>Υλικό</th><th>Τι επεξεργάστηκε</th><th>Για τι</th><th>Ρετάλια που έμειναν</th><th>Χρήστης</th></tr></thead><tbody>
+      <div class="panel"><h2>Κατανάλωση ανά υλικό</h2>${Object.keys(sum).length ? `<div class="tw"><table><thead><tr><th>Υλικό</th><th class="r">Ολόκληρα</th><th class="r">Ρετάλια που χρησιμοποιήθηκαν</th><th class="r">Νέα ρετάλια</th><th class="r">Κατεργασίες</th></tr></thead><tbody>
+        ${Object.entries(sum).sort((a, b) => b[1].full - a[1].full).map(([p, o]) => `<tr class="click" data-go="prod" data-a="${p}"><td><b>${esc(prodName(p))}</b></td><td class="r"><b>${qtyU(o.full, p)}</b></td><td class="r">${fmtN(o.rem)}</td><td class="r">${fmtN(o.out)}</td><td class="r">${fmtN(o.n)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Καμία κατεργασία στο διάστημα.</div>'}</div>
+      <div class="panel"><h2>Κατεργασμένα (αναλυτικά)</h2>${ms.length ? `<div class="tw"><table><thead><tr><th>Ημερομηνία</th><th>Παραστατικό</th><th>Υλικό</th><th>Τι επεξεργάστηκε</th><th>Για τι</th><th>Ρετάλια που έμειναν</th><th>Χρήστης</th></tr></thead><tbody>
         ${ms.map(m => { const l = m.lines[0]; return `<tr class="click" data-go="mov" data-a="${m.id}"><td style="white-space:nowrap">${esc(fmtD(m.ts))}</td><td><span class="docno">${esc(m.docNo)}</span></td><td><b>${esc(prodName(l.p))}</b></td>
           <td class="small">${l.src === 'rem' ? 'Ρετάλι ' + esc(l.dims) : qtyU(l.qty, l.p) + ' ολόκληρα'}<div class="muted">${esc(locName(m.from))}</div></td><td class="small">${esc(m.purpose || '')}</td>
-          <td class="small">${(l.out || []).map(o => `<span class="mono">${esc(o.dims)}</span> → ${esc(remLocText(o.loc))}`).join('<br>') || '—'}</td><td class="small">${esc(uname(m.by))}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Καμία επεξεργασία στο διάστημα.</div>'}</div>`; }
+          <td class="small">${(l.out || []).map(o => `<span class="mono">${esc(o.dims)}</span> → ${esc(remLocText(o.loc))}`).join('<br>') || '—'}</td><td class="small">${esc(uname(m.by))}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Καμία κατεργασία στο διάστημα.</div>'}</div>`; }
   const nRem = remsWhere().length;
-  return `<div class="wrap">${pageHead('Λαμαρίνες, προφίλ, σωλήνες…', 'Υλικά & ρετάλια', `${can('move') ? '<button class="btn pri" data-act="matProc">Επεξεργασία</button>' : ''}${can('product_create') ? '<button class="btn" data-act="newMat">+ Νέο υλικό</button>' : ''}`)}
-    <div class="tabs"><button class="${f.tab === 'mat' ? 'on' : ''}" data-act="matsTab" data-v="mat">Υλικά (${matIds(false).length})</button><button class="${f.tab === 'rem' ? 'on' : ''}" data-act="matsTab" data-v="rem">Ρετάλια (${nRem})</button><button class="${f.tab === 'done' ? 'on' : ''}" data-act="matsTab" data-v="done">Επεξεργασμένα</button></div>
+  return `<div class="wrap">${pageHead('Λαμαρίνες, προφίλ, σωλήνες…', 'Υλικά & ρετάλια', `${can('move') ? '<button class="btn pri" data-act="matProc">Κατεργασία</button>' : ''}${can('product_create') ? '<button class="btn" data-act="newMat">+ Νέο υλικό</button>' : ''}`)}
+    <div class="tabs"><button class="${f.tab === 'mat' ? 'on' : ''}" data-act="matsTab" data-v="mat">Υλικά (${matIds(false).length})</button><button class="${f.tab === 'rem' ? 'on' : ''}" data-act="matsTab" data-v="rem">Ρετάλια (${nRem})</button><button class="${f.tab === 'done' ? 'on' : ''}" data-act="matsTab" data-v="done">Κατεργασμένα</button></div>
     <div class="panel" style="display:flex;flex-direction:column;gap:10px">${chips}<input type="search" id="mtq" value="${esc(f.q)}" placeholder="Αναζήτηση υλικού (όνομα, κωδικός, διάσταση)" aria-label="Αναζήτηση"></div>
     ${body}</div>`;
 };

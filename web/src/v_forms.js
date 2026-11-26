@@ -496,7 +496,7 @@ function openProdEditor(pid, onSaved, initialFile) {
   const subOpts = c => `${opt('', '— Χωρίς κατηγορία —', !x.sub)}${((S.cat[c] && S.cat[c].subs) || []).filter(s => s.active !== false || s.id === x.sub).map(s => opt(s.id, s.name, s.id === x.sub)).join('')}`;
   openModal(`${mhead(pid ? 'Επεξεργασία προϊόντος' : 'Νέο προϊόν')}
     <div class="f"><span class="lbl">Καταχώριση ως</span><div class="chips" role="radiogroup"><button type="button" class="chip ${x.kind !== 'mat' ? 'on' : ''}" data-pk="prod">Έτοιμο προϊόν</button><button type="button" class="chip ${x.kind === 'mat' ? 'on' : ''}" data-pk="mat">Υλικό κατασκευής</button></div>
-      <div class="small muted" id="pkhint">${x.kind === 'mat' ? 'Υλικό: καταναλώνεται με «Επεξεργασία» και μπορεί να αφήσει ρετάλια με διάσταση.' : 'Έτοιμο προϊόν: τοποθετείται / εγκαθίσταται.'}</div></div>
+      <div class="small muted" id="pkhint">${x.kind === 'mat' ? 'Υλικό: καταναλώνεται με «Κατεργασία» και μπορεί να αφήσει ρετάλια με διάσταση.' : 'Έτοιμο προϊόν: τοποθετείται / εγκαθίσταται.'}</div></div>
     <div class="f" id="pdimsw" style="${x.kind === 'mat' ? '' : 'display:none'}"><label for="pdims">Διάσταση ολόκληρου υλικού</label><input type="text" id="pdims" value="${esc(x.dims || '')}" placeholder="π.χ. 1000×2000×1,5 mm"></div>
     <div class="fields">
       <div class="f"><label for="pcode">Κωδικός</label><input type="text" id="pcode" value="${esc(x.code)}"></div>
@@ -539,7 +539,7 @@ function openProdEditor(pid, onSaved, initialFile) {
   if (initialFile) setPhoto(initialFile);
   const px = $('#pphx'); if (px) px.onclick = () => { removePhoto = true; newPhoto = null; $('#pphv').innerHTML = 'ΧΩΡΙΣ<br>ΦΩΤΟ'; };
   $$('[data-pk]').forEach(b => b.onclick = () => { x.kind = b.dataset.pk; $$('[data-pk]').forEach(c => c.classList.toggle('on', c === b)); $('#pdimsw').style.display = x.kind === 'mat' ? '' : 'none';
-    $('#pkhint').textContent = x.kind === 'mat' ? 'Υλικό: καταναλώνεται με «Επεξεργασία» και μπορεί να αφήσει ρετάλια με διάσταση.' : 'Έτοιμο προϊόν: τοποθετείται / εγκαθίσταται.';
+    $('#pkhint').textContent = x.kind === 'mat' ? 'Υλικό: καταναλώνεται με «Κατεργασία» και μπορεί να αφήσει ρετάλια με διάσταση.' : 'Έτοιμο προϊόν: τοποθετείται / εγκαθίσταται.';
     if (x.kind === 'mat' && !pid && $('#punit').value === 'τεμ' && S.units.some(u => u.k === 'φύλλα')) $('#punit').value = 'φύλλα';
     const before = x.cat; fitCat(); $('#pcat').innerHTML = catOpts(); if (x.cat !== before) { $('#psub').innerHTML = subOpts(x.cat); $('#ptype').innerHTML = typeOpts(x.cat, ''); } });
   $('#psave').onclick = async () => {
