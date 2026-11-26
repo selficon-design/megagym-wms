@@ -272,7 +272,7 @@ async function boot() {
   if (!db) { S.bootMsg = 'Η βάση δεδομένων δεν είναι διαθέσιμη. Συνδεθείτε ξανά.'; render(); return; }
   if (userCap) {
     const me = await userCap.me();
-    Object.assign(S.me, { id: me.id, name: me.name, avatar: me.avatarUrl, isOwner: me.isOwner });
+    Object.assign(S.me, { id: me.id, name: me.name, email: me.email || '', avatar: me.avatarUrl, isOwner: me.isOwner });
     const w = await userCap.can('data.write'); S.me.canWrite = w !== false;
     if (me.id) NAMES[me.id] = me.name;
   }
@@ -327,8 +327,16 @@ async function afterLoad() {
   const h = (location.hash || '').slice(1); if (VIEWS[h]) S.route = { v: h, a: null };
   render();
   // καταγραφή μέλους (μία φορά)
-  if (S.me.id && S.me.canWrite && !S.members[S.me.id]) {
-    try { await db.doc('members/' + S.me.id).set({ first: Date.now() }); } catch (e) {}
+  // ΣΥΜΠΛΗΡΩΝΕΙ μόνο ό,τι λείπει (όνομα, email, πρώτη είσοδος) — ποτέ δεν αντικαθιστά το προφίλ
+  if (S.me.id) {
+    try {
+      const ref = db.doc('members/' + S.me.id); const cur = (await ref.get()).data() || {};
+      const add = {};
+      if (!cur.email && S.me.email) add.email = S.me.email;
+      if (!cur.name) add.name = (S.me.name && S.me.name !== S.me.email ? S.me.name : '') || String(S.me.email || '').split('@')[0];
+      if (!cur.first) add.first = Date.now();
+      if (Object.keys(add).length) await ref.set(Object.assign({}, cur, add));
+    } catch (e) {}
   }
 }
 
