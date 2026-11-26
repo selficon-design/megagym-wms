@@ -113,6 +113,14 @@ jobs:
       REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       ANON: ${{ secrets.SUPABASE_ANON_KEY }}
     steps:
+      - name: Λογαριασμοί χρηστών (μόνο πλήθος — όχι email)
+        env:
+          TOK: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          REF=$(printf '%s' "$REF" | tr -d '[:space:]'); TOK=$(printf '%s' "$TOK" | tr -d '[:space:]'); echo "::add-mask::$TOK"
+          q='{"query":"select (select count(*) from auth.users) as auth_users, (select count(*) from public.docs where coll = $$members$$) as profiles, (select count(*) from auth.users u where not exists (select 1 from public.docs d where d.path = $$members/$$ || u.id::text)) as without_profile, (select count(*) from public.docs where coll = $$roles$$) as roles"}'
+          r=$(curl -s -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' -d "$q")
+          echo "::notice title=Χρήστες::$(echo "$r" | head -c 300)"
       - name: Server, σύνδεση χρηστών, εφαρμογή
         run: |
           REF=$(printf '%s' "$REF" | tr -d '[:space:]'); ANON=$(printf '%s' "$ANON" | tr -d '[:space:]'); echo "::add-mask::$ANON"

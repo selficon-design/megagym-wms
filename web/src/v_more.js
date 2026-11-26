@@ -531,7 +531,7 @@ ACT.editCat = el => {
 /* ---------------- ΧΡΗΣΤΕΣ ---------------- */
 VIEWS.users = () => {
   const admin = S.me.role === 'admin';
-  const ids = [...new Set([...Object.keys(S.members), ...Object.keys(S.roles)])];
+  const ids = [...new Set([...Object.keys(S.members), ...Object.keys(S.roles), ...Object.keys(S.authUsers || {})])]; // και λογαριασμοί σύνδεσης χωρίς προφίλ
   if (admin && !S.authUsers && !S.authUsersLoading) loadAuthUsers();
   return `<div class="wrap">${pageHead('Ρόλοι & πρόσβαση', 'Χρήστες & δικαιώματα', admin ? `<button class="btn pri" data-act="newUser">+ Νέος χρήστης</button>` : '')}
     <div class="panel"><h3>Ο λογαριασμός σας</h3><p style="margin:8px 0 0">${esc(S.me.name || 'Εσείς')} · <b>${esc(ROLE_LABEL[S.me.role])}</b>${S.me.whs.length ? ' · Αποθήκες: ' + S.me.whs.map(whName).map(esc).join(', ') : ''}${S.me.isOwner ? ' · Κάτοχος της εφαρμογής' : ''}</p></div>
@@ -543,7 +543,7 @@ VIEWS.users = () => {
       <p class="hint" style="margin-top:10px">Ο AI Assistant ακολουθεί ακριβώς τα ίδια δικαιώματα. Νέους χρήστες προσθέτει ο Administrator με το κουμπί «+ Νέος χρήστης» (email και προσωρινός κωδικός). Ο χρήστης μπορεί μετά να αλλάξει τον κωδικό του από το μενού του λογαριασμού.</p></div>
     <div class="tw"><table><thead><tr><th>Χρήστης</th><th>Ρόλος</th><th>Περιορισμός αποθηκών</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>
     ${ids.map(u => { const r = S.roles[u] || {}; const isMe = u === S.me.id; const role = isMe ? S.me.role : (r.role || 'viewer');
-      return `<tr><td><b>${esc(uname(u))}</b>${isMe ? ' <span class="tag y">Εσείς</span>' : ''}<div class="small muted">${esc((S.members[u] && S.members[u].email) || '')}${au(u).banned ? ' · <b class="neg">Απενεργοποιημένος</b>' : ''}</div><div class="small muted">Πρώτη είσοδος ${esc(fmtD(S.members[u] && S.members[u].first))}${au(u).last ? ' · Τελευταία ' + esc(fmtD(Date.parse(au(u).last))) : ''}</div></td>
+      return `<tr><td><b>${esc(S.members[u] ? uname(u) : (au(u).email || uname(u)))}</b>${isMe ? ' <span class="tag y">Εσείς</span>' : ''}<div class="small muted">${esc((S.members[u] && S.members[u].email) || au(u).email || '')}${au(u).banned ? ' · <b class="neg">Απενεργοποιημένος</b>' : ''}</div><div class="small muted">Πρώτη είσοδος ${esc(fmtD(S.members[u] && S.members[u].first))}${au(u).last ? ' · Τελευταία ' + esc(fmtD(Date.parse(au(u).last))) : ''}</div></td>
       <td>${admin && !isMe ? `<select data-ur="${u}">${Object.entries(ROLE_LABEL).map(([k, l]) => opt(k, l, k === role)).join('')}</select>` : esc(ROLE_LABEL[role])}</td>
       <td class="small">${admin && !isMe ? (() => { const cb = ([k, w]) => `<label class="check"><input type="checkbox" data-uw="${u}" value="${k}" ${(r.whs || []).includes(k) ? 'checked' : ''}> ${esc(w.name)}</label>`; const all = activeList(S.wh); const gw = all.filter(([, w]) => w.gym); const sel = gw.filter(([k]) => (r.whs || []).includes(k)).length;
         return all.filter(([, w]) => !w.gym).map(cb).join('') + (gw.length ? `<details style="margin-top:4px"><summary class="small">Αποθήκες γυμναστηρίων (${gw.length}${sel ? ', επιλεγμένες ' + sel : ''})</summary>${gw.map(cb).join('')}</details>` : ''); })() + '<div class="muted">Κανένα επιλεγμένο = όλες</div>' : ((r.whs || []).map(whName).map(esc).join(', ') || 'Όλες')}</td>
