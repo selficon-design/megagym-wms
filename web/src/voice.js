@@ -70,6 +70,11 @@ function upTo999(n) {
   if (r >= 10 && r < 20) out.push(GN.teens[r - 10]); else { if (t) out.push(GN.tens[t]); if (o) out.push(GN.ones[o]); }
   return out;
 }
+const HALF_TH = { 2: 'δυόμισι', 3: 'τρεισήμισι', 4: 'τεσσερισήμισι', 5: 'πεντέμισι', 6: 'εξήμισι', 7: 'εφτάμισι', 8: 'οχτώμισι', 9: 'εννιάμισι' };
+function sayNumberEl(n) { // ολογράφως, χωρίς παύσεις ανάμεσα
+  if (n % 1000 === 500 && HALF_TH[Math.floor(n / 1000)]) return HALF_TH[Math.floor(n / 1000)] + ' χιλιάδες';
+  return sayNumber(n).replace(/\s*‧\s*/g, ' ');
+}
 function sayNumber(n) {
   if (!(n >= 0) || n > 999999) return String(n);
   if (n === 0) return 'μηδέν';
@@ -104,11 +109,13 @@ function ttsPrepare(t) {
   // κενό ανάμεσα σε γράμματα και αριθμό (π.χ. τύπος «DKP 2 επί 1000») → παύση με κόμμα
   s = s.replace(/([A-Za-z⟧])\s+(?=\d)/g, '$1, ').replace(/(\d)\s+(?=[A-Za-z]{2})/g, '$1, ').replace(/(\d)\s+(?=\d)/g, '$1, ');
   s = s.replace(/\s+επί\s+/g, ', επί ');
-  // μεγάλοι αριθμοί με μικρή παύση: 781 → «700, 81», 1250 → «1000, 250» (οι διψήφιοι, π.χ. 15, μένουν ενωμένοι· όχι μέσα σε κωδικούς)
-  s = s.split(/(⟦[^⟧]*⟧)/).map(part => part.startsWith('⟦') ? part : part.replace(/(?<![\d.,])(\d{3,4})(?![\d]|[.,]\d)/g, m => {
-    const n = +m; if (/^0/.test(m)) return m;
-    const big = n >= 1000 ? Math.floor(n / 1000) * 1000 : Math.floor(n / 100) * 100, rest = n - big;
-    return rest ? big + ', ' + rest : m; })).join('');
+  // αριθμοί: 100–999 με μικρή παύση (781 → «700, 81»)· από 1000 και πάνω ολογράφως, όπως τους λέμε
+  // (1500 → «χίλια πεντακόσια», 2500 → «δυόμισι χιλιάδες», 3250 → «τρεις χιλιάδες διακόσια πενήντα»)
+  s = s.split(/(⟦[^⟧]*⟧)/).map(part => part.startsWith('⟦') ? part : part.replace(/(?<![\d.,])(\d{1,3}(?:\.\d{3})+|\d{3,6})(?![\d]|[.,]\d)/g, m => {
+    if (/^0/.test(m)) return m; const n = +m.replace(/\./g, '');
+    if (n >= 1000 && n <= 999999) return sayNumberEl(n);
+    const big = Math.floor(n / 100) * 100, rest = n - big;
+    return n < 1000 && rest ? big + ', ' + rest : m; })).join('');
   // αριθμοί (και σειρές αριθμών «1, 2, 3») → αργό τμήμα, μαζί με τη μονάδα που ακολουθεί
   s = s.replace(/(?<![\p{L}\d⟦.,])(\d+(?:[.,]\d+)*(?:[xXχΧ×]\d+(?:[.,]\d+)*)*(?:\s*(?:,|και|-|έως|ως|μέχρι)\s*\d+(?:[.,]\d+)*)*)(\s*(?:τεμάχια|τεμάχιο|φύλλα|φύλλο|μέτρα|μέτρο|τετραγωνικά μέτρα|κιλά|μοίρες|βαθμούς Κελσίου|βατ|βολτ|κιλοβάτ|χιλιοστά|εκατοστά|mm|cm|watt|W)(?![\p{L}\d]))?(?![^⟦]*⟧)/gu,
     (m, n, u) => /\d[^\d]+\d/.test(n.replace(/[.,]\d/g, '')) && /(,|και|-|έως|ως|μέχρι)/.test(n)
