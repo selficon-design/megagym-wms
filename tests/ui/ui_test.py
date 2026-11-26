@@ -106,7 +106,7 @@ with sync_playwright() as pw:
 
     print('7. Χρήστες')
     A.evaluate("go('users')"); A.wait_for_selector('[data-act=newUser]'); A.wait_for_timeout(500)
-    A.click('[data-act=newUser]'); A.fill('#nun', 'Κώστας Δοκιμής'); A.fill('#nue', 'kostas%d@x.gr' % os.getpid()); A.select_option('#nur', 'employee'); A.click('#nugo')
+    A.click('[data-act=newUser]'); A.fill('#nufn', 'Κώστας'); A.fill('#nuln', 'Δοκιμής'); A.fill('#nue', 'kostas%d@x.gr' % os.getpid()); A.select_option('#nur', 'employee'); A.click('#nugo')
     try: A.wait_for_function("Object.values(S.members).some(m => m.name === 'Κώστας Δοκιμής')", timeout=8000)
     except Exception: print('DEBUG', A.evaluate("(document.querySelector('#nuerr')||{}).innerText"), A.evaluate("JSON.stringify(Object.values(S.members).map(m=>m.name))")); A.screenshot(path=f'{OUT}/fail.png'); raise
     ok(True, 'νέος χρήστης δημιουργήθηκε και εμφανίζεται')

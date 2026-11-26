@@ -303,7 +303,9 @@ async function boot() {
   if (S.me.id) listen('data/users/' + S.me.id, snap => { mapInto(S.privNotes)(snap); mergeNotes(); });
   listen('inv', mapInto(S.inv));
   listen('roles', once(snap => { mapInto(S.roles)(snap); applyRole(); }));
-  listen('members', mapInto(S.members));
+  listen('members', snap => { mapInto(S.members)(snap); // το όνομά μου από το προφίλ (μπορεί να φτάσει μετά την εκκίνηση)
+    const m = S.members[S.me.id]; if (m && m.name && m.name !== S.me.name) { S.me.name = m.name; NAMES[S.me.id] = m.name; }
+    if (typeof AI !== 'undefined' && AI.open && !AI.items.length) renderAi(); });
   subscribeMov();
 }
 let movUnsub = null;

@@ -534,7 +534,7 @@ VIEWS.users = () => {
   const ids = [...new Set([...Object.keys(S.members), ...Object.keys(S.roles), ...Object.keys(S.authUsers || {})])]; // και λογαριασμοί σύνδεσης χωρίς προφίλ
   if (admin && !S.authUsers && !S.authUsersLoading) loadAuthUsers();
   return `<div class="wrap">${pageHead('Ρόλοι & πρόσβαση', 'Χρήστες & δικαιώματα', admin ? `<button class="btn pri" data-act="newUser">+ Νέος χρήστης</button>` : '')}
-    <div class="panel"><h3>Ο λογαριασμός σας</h3><p style="margin:8px 0 0">${esc(S.me.name || 'Εσείς')} · <b>${esc(ROLE_LABEL[S.me.role])}</b>${S.me.whs.length ? ' · Αποθήκες: ' + S.me.whs.map(whName).map(esc).join(', ') : ''}${S.me.isOwner ? ' · Κάτοχος της εφαρμογής' : ''}</p></div>
+    <div class="panel"><div class="row"><h3 style="flex:1">Ο λογαριασμός σας</h3><button class="btn sm" data-act="userName" data-u="${S.me.id}">Το όνομά μου</button></div><p style="margin:8px 0 0">${esc(S.me.name || 'Εσείς')} · <b>${esc(ROLE_LABEL[S.me.role])}</b>${S.me.whs.length ? ' · Αποθήκες: ' + S.me.whs.map(whName).map(esc).join(', ') : ''}${S.me.isOwner ? ' · Κάτοχος της εφαρμογής' : ''}</p></div>
     <div class="panel"><h3>Ρόλοι</h3><div class="tw" style="margin-top:10px"><table><thead><tr><th>Ρόλος</th><th>Τι επιτρέπει</th></tr></thead><tbody>
       <tr><td><b>Administrator</b></td><td>Πλήρης διαχείριση, ρόλοι χρηστών, διαγραφή προϊόντων και ειδών/κατηγοριών/τύπων.</td></tr>
       <tr><td><b>Warehouse Manager</b></td><td>Όλες οι κινήσεις, μεταφορές, καταστάσεις, απόσυρση, ολοκλήρωση απογραφών, επιστροφή σε άλλη αποθήκη, δομή & κατάλογος, διαγραφή προϊόντων και ειδών/κατηγοριών/τύπων.</td></tr>
@@ -547,7 +547,7 @@ VIEWS.users = () => {
       <td>${admin && !isMe ? `<select data-ur="${u}">${Object.entries(ROLE_LABEL).map(([k, l]) => opt(k, l, k === role)).join('')}</select>` : esc(ROLE_LABEL[role])}</td>
       <td class="small">${admin && !isMe ? (() => { const cb = ([k, w]) => `<label class="check"><input type="checkbox" data-uw="${u}" value="${k}" ${(r.whs || []).includes(k) ? 'checked' : ''}> ${esc(w.name)}</label>`; const all = activeList(S.wh); const gw = all.filter(([, w]) => w.gym); const sel = gw.filter(([k]) => (r.whs || []).includes(k)).length;
         return all.filter(([, w]) => !w.gym).map(cb).join('') + (gw.length ? `<details style="margin-top:4px"><summary class="small">Αποθήκες γυμναστηρίων (${gw.length}${sel ? ', επιλεγμένες ' + sel : ''})</summary>${gw.map(cb).join('')}</details>` : ''); })() + '<div class="muted">Κανένα επιλεγμένο = όλες</div>' : ((r.whs || []).map(whName).map(esc).join(', ') || 'Όλες')}</td>
-      ${admin ? `<td><div class="btns">${isMe ? '' : `<button class="btn sm pri" data-act="saveRole" data-u="${u}">Αποθήκευση</button>`}<button class="btn sm ghost" data-act="userPass" data-u="${u}">Κωδικός</button>${isMe || u === S.ownerUid ? '' : `<button class="btn sm ghost" data-act="userBan" data-u="${u}" data-on="${au(u).banned ? 0 : 1}">${au(u).banned ? 'Ενεργοποίηση' : 'Απενεργοποίηση'}</button>`}</div></td>` : ''}</tr>`; }).join('') || `<tr><td colspan="4" class="empty">Κανένας χρήστης ακόμη.</td></tr>`}
+      ${admin ? `<td><div class="btns">${isMe ? '' : `<button class="btn sm pri" data-act="saveRole" data-u="${u}">Αποθήκευση</button>`}<button class="btn sm ghost" data-act="userName" data-u="${u}">Όνομα</button><button class="btn sm ghost" data-act="userPass" data-u="${u}">Κωδικός</button>${isMe || u === S.ownerUid ? '' : `<button class="btn sm ghost" data-act="userBan" data-u="${u}" data-on="${au(u).banned ? 0 : 1}">${au(u).banned ? 'Ενεργοποίηση' : 'Απενεργοποίηση'}</button>`}</div></td>` : ''}</tr>`; }).join('') || `<tr><td colspan="4" class="empty">Κανένας χρήστης ακόμη.</td></tr>`}
     </tbody></table></div></div>`;
 };
 ACT.saveRole = async el => {
@@ -563,10 +563,34 @@ async function loadAuthUsers() {
   try { const r = await SB.fn('admin', { action: 'list' }); S.authUsers = {}; r.users.forEach(x => S.authUsers[x.id] = x); scheduleRender(); }
   catch (e) { S.authUsers = {}; } finally { S.authUsersLoading = false; }
 }
+// Όνομα / επώνυμο: ο Administrator για όλους (μέσω server), ο καθένας για τον εαυτό του
+ACT.userName = el => {
+  const u = el.dataset.u, m = S.members[u] || {}, isMe = u === S.me.id;
+  const parts = String(m.name || '').split(/\s+/);
+  openModal(`${mhead(isMe ? 'Το όνομά μου' : 'Όνομα χρήστη', esc(m.email || au(u).email || uname(u)))}
+    <div class="f"><label for="unf">Όνομα</label><input type="text" id="unf" autocomplete="off" value="${esc(m.fname || (m.name && m.name !== m.email ? parts[0] : '') || '')}"><div class="small muted">Με αυτό ${isMe ? 'σας' : 'τον/την'} αποκαλεί το AI.</div></div>
+    <div class="f"><label for="unl">Επώνυμο (προαιρετικό)</label><input type="text" id="unl" autocomplete="off" value="${esc(m.lname != null ? m.lname : (m.fname ? '' : parts.slice(1).join(' ')))}"></div>
+    <div id="unerr"></div>
+    <div class="btns" style="justify-content:flex-end"><button class="btn ghost" data-act="closeModal">Ακύρωση</button><button class="btn pri" id="ungo">Αποθήκευση</button></div>`);
+  setTimeout(() => { const i = $('#unf'); if (i) i.focus(); }, 30);
+  $('#ungo').onclick = async () => {
+    const fname = $('#unf').value.trim(), lname = $('#unl').value.trim();
+    if (!fname) { $('#unerr').innerHTML = '<div class="errbox">Γράψτε το όνομα.</div>'; return; }
+    $('#ungo').disabled = true;
+    try {
+      if (S.me.role === 'admin') await SB.fn('admin', { action: 'profile', uid: u, fname, lname });
+      else { const ref = db.doc('members/' + u); const cur = (await ref.get()).data() || {}; await ref.set(Object.assign({}, cur, { fname, lname, name: [fname, lname].filter(Boolean).join(' ') })); }
+      const name = [fname, lname].filter(Boolean).join(' ');
+      S.members[u] = Object.assign({}, S.members[u] || {}, { fname, lname, name }); NAMES[u] = name; if (isMe) S.me.name = name;
+      closeModal(); toast('Το όνομα αποθηκεύτηκε.'); scheduleRender();
+    } catch (e) { $('#unerr').innerHTML = `<div class="errbox">${esc(e.message)}</div>`; $('#ungo').disabled = false; }
+  };
+};
 ACT.newUser = () => {
   const cb = ([k, w]) => `<label class="check"><input type="checkbox" class="nuw" value="${k}"> ${esc(w.name)}</label>`;
   openModal(`${mhead('Νέος χρήστης', 'Σύνδεση με email & κωδικό')}
-    <div class="f"><label for="nun">Ονοματεπώνυμο</label><input type="text" id="nun" autocomplete="off"></div>
+    <div class="f"><label for="nufn">Όνομα</label><input type="text" id="nufn" autocomplete="off" placeholder="π.χ. Δημήτρης"><div class="small muted">Με αυτό τον αποκαλεί το AI.</div></div>
+    <div class="f"><label for="nuln">Επώνυμο (προαιρετικό)</label><input type="text" id="nuln" autocomplete="off"></div>
     <div class="f"><label for="nue">Email</label><input type="email" id="nue" autocomplete="off" inputmode="email"></div>
     <div class="f"><label for="nup">Προσωρινός κωδικός (τουλάχιστον 8 χαρακτήρες)</label><input type="text" id="nup" autocomplete="off" value="${genPass()}"></div>
     <div class="f"><label for="nur">Ρόλος</label><select id="nur">${Object.entries(ROLE_LABEL).map(([k, l]) => opt(k, l, k === 'employee')).join('')}</select></div>
@@ -575,7 +599,7 @@ ACT.newUser = () => {
     <div id="nuerr"></div>
     <div class="btns" style="justify-content:flex-end"><button class="btn ghost" data-act="closeModal">Ακύρωση</button><button class="btn pri" id="nugo">Δημιουργία</button></div>`);
   $('#nugo').onclick = async () => {
-    const body = { action: 'create', name: $('#nun').value.trim(), email: $('#nue').value.trim(), password: $('#nup').value, role: $('#nur').value, whs: $$('.nuw').filter(c => c.checked).map(c => c.value) };
+    const body = { action: 'create', fname: $('#nufn').value.trim(), lname: $('#nuln').value.trim(), name: [$('#nufn').value.trim(), $('#nuln').value.trim()].filter(Boolean).join(' '), email: $('#nue').value.trim(), password: $('#nup').value, role: $('#nur').value, whs: $$('.nuw').filter(c => c.checked).map(c => c.value) };
     $('#nugo').disabled = true;
     try { await SB.fn('admin', body); closeModal(); toast('Ο χρήστης δημιουργήθηκε.'); S.authUsers = null; scheduleRender(); }
     catch (e) { $('#nuerr').innerHTML = `<div class="errbox">${esc(e.message)}</div>`; $('#nugo').disabled = false; }

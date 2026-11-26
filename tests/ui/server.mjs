@@ -88,8 +88,14 @@ async function handle(req, res) {
           const id = (await sql`select gen_random_uuid()::text as id`)[0].id;
           await sql`insert into auth.users (id, email, raw_user_meta_data) values (${id}::uuid, ${b.email}, ${sql.json({ name: b.name })})`;
           await sql`insert into public.docs (path, coll, id, data) values (${'roles/' + id}, 'roles', ${id}, ${sql.json({ role: b.role, whs: b.whs || [] })}) on conflict (path) do update set data = excluded.data`;
-          await sql`update public.docs set data = data || ${sql.json({ name: b.name })} where path = ${'members/' + id}`;
+          await sql`update public.docs set data = data || ${sql.json({ name: [b.fname, b.lname].filter(Boolean).join(' ') || b.name, fname: b.fname || '', lname: b.lname || '' })} where path = ${'members/' + id}`;
           push({ ev: 'RESYNC' }); return J(res, { id });
+        }
+        if (b.action === 'profile') {
+          const cur = (await sql`select data from public.docs where path = ${'members/' + b.uid}`)[0]?.data || {};
+          const d = Object.assign({}, cur, { fname: b.fname, lname: b.lname || '', name: [b.fname, b.lname].filter(Boolean).join(' ') });
+          await sql`insert into public.docs (path, coll, id, data) values (${'members/' + b.uid}, 'members', ${b.uid}, ${sql.json(d)}) on conflict (path) do update set data = excluded.data`;
+          push({ ev: 'UPSERT', row: { path: 'members/' + b.uid, data: d } }); return J(res, { ok: true });
         }
         return J(res, { ok: true });
       }
