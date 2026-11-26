@@ -121,6 +121,9 @@ jobs:
           q='{"query":"select (select count(*) from auth.users) as auth_users, (select count(*) from public.docs where coll = $$members$$) as profiles, (select count(*) from auth.users u where not exists (select 1 from public.docs d where d.path = $$members/$$ || u.id::text)) as without_profile, (select count(*) from public.docs where coll = $$roles$$) as roles"}'
           r=$(curl -s -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' -d "$q")
           echo "::notice title=Χρήστες::$(echo "$r" | head -c 300)"
+          q='{"query":"select (u.id::text = (select data->>$$uid$$ from public.docs where path = $$cfg/owner$$)) as owner, (d.path is not null) as has_profile, (d.data->>$$name$$ is not null) as has_name, r.data->>$$role$$ as role, (u.last_sign_in_at is not null) as signed_in, (u.email_confirmed_at is not null) as confirmed, (u.banned_until > now()) as banned, u.created_at::date as created from auth.users u left join public.docs d on d.path = $$members/$$ || u.id::text left join public.docs r on r.path = $$roles/$$ || u.id::text order by u.created_at"}'
+          r=$(curl -s -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' -d "$q")
+          echo "::notice title=Χρήστες αναλυτικά::$(echo "$r" | head -c 900)"
       - name: Server, σύνδεση χρηστών, εφαρμογή
         run: |
           REF=$(printf '%s' "$REF" | tr -d '[:space:]'); ANON=$(printf '%s' "$ANON" | tr -d '[:space:]'); echo "::add-mask::$ANON"
