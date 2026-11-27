@@ -195,10 +195,10 @@ function outUnlock() {
     const b = ox.createBuffer(1, 1, 22050), n = ox.createBufferSource(); n.buffer = b; n.connect(ox.destination); n.start(0);
   } catch (e) {}
 }
-function audioSessionPlayback() { try { if (navigator.audioSession && !VOICE.recording) navigator.audioSession.type = 'playback'; } catch (e) {} }
 function unlockAudio(ev) {
   if (ev && ev.type === 'keydown' && ev.key !== 'Enter') return;
   outUnlock();
+  if (VOICE.pending && !VOICE.recording) { const t = VOICE.pending; VOICE.pending = null; ttsSpeak(t); return; } // μέσα στο ίδιο άγγιγμα
   if (VOICE.playing) return; // και κατά την υπαγόρευση: το βελάκι σταματά το μικρόφωνο ΚΑΙ ανοίγει το κανάλι
   const el = VOICE.el; if (!el.paused && el.loop) { clearTimeout(VOICE.silT); VOICE.silT = setTimeout(silenceOff, 90000); return; }
   el.muted = false; el.loop = true; el.src = SILENT_WAV;
@@ -213,7 +213,6 @@ async function playUrl(url, rate) {
     try {
       if (ox.state !== 'running' && ox.resume) await Promise.race([ox.resume(), new Promise(r => setTimeout(r, 400))]);
       if (ox.state === 'running') {
-        audioSessionPlayback();
         const ab = await (await fetch(url)).arrayBuffer();
         const buf = await new Promise((ok, no) => { const p = ox.decodeAudioData(ab, ok, no); if (p && p.then) p.then(ok, no); });
         clearTimeout(VOICE.silT); // η σιωπή συνεχίζει από κάτω (ήχος και με τον διακόπτη αθόρυβου)
@@ -254,7 +253,7 @@ async function speakInner(text, my) {
     if (my !== VOICE.seq) return;
     if (e && e.status === 503) VOICE.elOk = false; // δεν έχει ρυθμιστεί → φωνή συσκευής
     else if (e && e.status && !VOICE.warned) { VOICE.warned = true; toast(e.message + ' — χρησιμοποιείται η φωνή της συσκευής.', true); }
-    if (e && e.name === 'NotAllowedError') { VOICE.unlocked = false; return toast('Ο ήχος μπλοκαρίστηκε από τη συσκευή. Πατήστε «Επανάληψη ακρόασης».', true); }
+    if (e && e.name === 'NotAllowedError') { VOICE.unlocked = false; VOICE.pending = text; return toast('Αγγίξτε την οθόνη για να ακούσετε την απάντηση.', true); }
     deviceSpeak(text);
   }
 }
@@ -313,12 +312,12 @@ async function micStart() {
   ttsStop();
   const t = $('#aiin'); const base = t ? t.value : (AI.draft || '');
   // το AudioContext δημιουργείται μέσα στο πάτημα (απαραίτητο στο iPhone)
-  let ctx = null; try { if (AC) { ctx = new AC(); ctx.resume && ctx.resume(); } } catch (e) { ctx = null; }
+  // ΕΝΑ κοινό κανάλι για μικρόφωνο και φωνή: δεύτερο κανάλι στο iPhone «διακόπτει» τη φωνή και η απάντηση δεν παίζει μόνη της
+  let ctx = null; try { outUnlock(); ctx = VOICE.ox || null; if (!ctx && AC) ctx = new AC(); ctx && ctx.resume && ctx.resume(); } catch (e) { ctx = null; }
   const L = VOICE.live = { base, committed: '', partial: '', ctx, queue: [], ws: null, open: false, mode: ctx ? 'live' : 'batch', waiters: [] };
   VOICE.recording = true; VOICE.fromMic = true; renderAi();
-  try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
   try { L.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
-  catch (e) { VOICE.recording = false; VOICE.live = null; try { ctx && ctx.close(); } catch (x) {} renderAi(); return toast('Δεν δόθηκε πρόσβαση στο μικρόφωνο. Επιτρέψτε το από τις ρυθμίσεις του browser.', true); }
+  catch (e) { VOICE.recording = false; VOICE.live = null; try { ctx && ctx !== VOICE.ox && ctx.close(); } catch (x) {} renderAi(); return toast('Δεν δόθηκε πρόσβαση στο μικρόφωνο. Επιτρέψτε το από τις ρυθμίσεις του browser.', true); }
   if (L !== VOICE.live) { L.stream.getTracks().forEach(x => x.stop()); return; }
   if (ctx) { try { L.src = ctx.createMediaStreamSource(L.stream); L.an = ctx.createAnalyser(); L.an.fftSize = 512; L.src.connect(L.an); waveLoop(L); } catch (e) {} }
   if (L.mode === 'live') {
@@ -447,7 +446,7 @@ async function micStop(sendAfter, cancel) {
     }
   }
   try { L.stream && L.stream.getTracks().forEach(x => x.stop()); } catch (e) {}
-  try { L.ctx && L.ctx.close(); } catch (e) {}
+  try { L.ctx && L.ctx !== VOICE.ox && L.ctx.close(); } catch (e) {} // το κοινό κανάλι μένει ανοιχτό
   VOICE.busy = false; VOICE.live = null;
   if (cancel) { VOICE.fromMic = false; renderAi(); return; }
   AI.draft = joinTxt(L.base, L.committed);
