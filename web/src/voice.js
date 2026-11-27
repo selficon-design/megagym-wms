@@ -11,6 +11,7 @@ TTS.ok = true;
 function ttsStop() {
   VOICE.seq++;
   try { if (VOICE.audio) { const a = VOICE.audio; a.pause(); VOICE.audio = null; if (a.onended) { const f = a.onended; a.onended = null; f(); } } } catch (e) {}
+  try { if (VOICE.src) { const sn = VOICE.src; VOICE.src = null; const f = sn.onended; sn.onended = null; try { sn.stop(); } catch (e) {} if (f) f(); } } catch (e) {}
   if (VOICE.url) { URL.revokeObjectURL(VOICE.url); VOICE.url = null; }
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
 }
@@ -184,9 +185,21 @@ const SILENT_WAV = (() => { const n = 800, b = new Uint8Array(44 + n), v = new D
 VOICE.el = new Audio(); VOICE.el.setAttribute('playsinline', ''); VOICE.el.preload = 'auto';
 // Σε ΚΑΘΕ πάτημα (π.χ. το βελάκι) το κανάλι παίζει σιωπή σε επανάληψη μέχρι να έρθει η απάντηση — έτσι το iPhone
 // δεν το κλείνει όσο περιμένουμε το AI και η απάντηση διαβάζεται αμέσως, χωρίς «Επανάληψη ακρόασης».
+// Web Audio: το iPhone το ξεκλειδώνει με ένα πάτημα και μετά παίζει όποτε έρθει ο ήχος (χωρίς νέο πάτημα)
+const OUT_AC = window.AudioContext || window.webkitAudioContext;
+function outUnlock() {
+  try {
+    if (!OUT_AC) return;
+    if (!VOICE.ox || VOICE.ox.state === 'closed') VOICE.ox = new OUT_AC();
+    const ox = VOICE.ox; if (ox.state !== 'running' && ox.resume) ox.resume().catch(() => {});
+    const b = ox.createBuffer(1, 1, 22050), n = ox.createBufferSource(); n.buffer = b; n.connect(ox.destination); n.start(0);
+  } catch (e) {}
+}
+function audioSessionPlayback() { try { if (navigator.audioSession && !VOICE.recording) navigator.audioSession.type = 'playback'; } catch (e) {} }
 function unlockAudio(ev) {
-  if (VOICE.playing) return; // και κατά την υπαγόρευση: το βελάκι σταματά το μικρόφωνο ΚΑΙ ανοίγει το κανάλι
   if (ev && ev.type === 'keydown' && ev.key !== 'Enter') return;
+  outUnlock();
+  if (VOICE.playing) return; // και κατά την υπαγόρευση: το βελάκι σταματά το μικρόφωνο ΚΑΙ ανοίγει το κανάλι
   const el = VOICE.el; if (!el.paused && el.loop) { clearTimeout(VOICE.silT); VOICE.silT = setTimeout(silenceOff, 90000); return; }
   el.muted = false; el.loop = true; el.src = SILENT_WAV;
   const p = el.play(); if (p && p.then) p.then(() => { VOICE.unlocked = true; }).catch(() => {});
@@ -194,8 +207,26 @@ function unlockAudio(ev) {
 }
 function silenceOff() { const el = VOICE.el; if (el.loop && !VOICE.playing) { try { el.pause(); } catch (e) {} el.loop = false; } }
 ['touchend', 'pointerup', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
-function playUrl(url, rate) {
-  return new Promise((res, rej) => { const el = VOICE.el; el.loop = false; clearTimeout(VOICE.silT); el.onended = () => res(); el.onerror = () => rej(new Error('audio'));
+async function playUrl(url, rate) {
+  const ox = VOICE.ox;
+  if (ox) {
+    try {
+      if (ox.state !== 'running' && ox.resume) await Promise.race([ox.resume(), new Promise(r => setTimeout(r, 400))]);
+      if (ox.state === 'running') {
+        audioSessionPlayback();
+        const ab = await (await fetch(url)).arrayBuffer();
+        const buf = await new Promise((ok, no) => { const p = ox.decodeAudioData(ab, ok, no); if (p && p.then) p.then(ok, no); });
+        clearTimeout(VOICE.silT); // η σιωπή συνεχίζει από κάτω (ήχος και με τον διακόπτη αθόρυβου)
+        return await new Promise(res => { const sn = ox.createBufferSource(); sn.buffer = buf; sn.connect(ox.destination);
+          sn.onended = () => { if (VOICE.src === sn) VOICE.src = null; VOICE.silT = setTimeout(silenceOff, 60000); res(); };
+          VOICE.src = sn; VOICE.audio = null; sn.start(0); });
+      }
+    } catch (e) { console.warn('webaudio', e); }
+  }
+  return playEl(url, rate);
+}
+function playEl(url, rate) {
+  return new Promise((res, rej) => { const el = VOICE.el; VOICE.audio = el; el.loop = false; clearTimeout(VOICE.silT); el.onended = () => res(); el.onerror = () => rej(new Error('audio'));
     el.preservesPitch = el.mozPreservesPitch = el.webkitPreservesPitch = true; // πιο αργά χωρίς «βαριά» φωνή
     const R = rate || 1; const fix = () => { if (Math.abs(el.playbackRate - R) > 0.01) el.playbackRate = R; el.defaultPlaybackRate = R; };
     el.onloadedmetadata = fix; el.oncanplay = fix; el.onplaying = fix;
@@ -214,7 +245,7 @@ async function speakInner(text, my) {
     for (let i = 0; i < segs.length; i++) {
       const url = await pend[i]; if (my !== VOICE.seq) { URL.revokeObjectURL(url); pend.slice(i + 1).forEach(p => p && p.then(u => URL.revokeObjectURL(u), () => {})); return; }
       ensure(i + 3);
-      VOICE.url = url; VOICE.audio = VOICE.el;
+      VOICE.url = url;
       VOICE.cur = { slow: segs[i].slow, api: (VOICE.apis || {})[segs[i].text] || 1 };
       await playUrl(url, rateFor(VOICE.cur));
       URL.revokeObjectURL(url); VOICE.url = null; if (my !== VOICE.seq) return;
@@ -285,6 +316,7 @@ async function micStart() {
   let ctx = null; try { if (AC) { ctx = new AC(); ctx.resume && ctx.resume(); } } catch (e) { ctx = null; }
   const L = VOICE.live = { base, committed: '', partial: '', ctx, queue: [], ws: null, open: false, mode: ctx ? 'live' : 'batch', waiters: [] };
   VOICE.recording = true; VOICE.fromMic = true; renderAi();
+  try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
   try { L.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
   catch (e) { VOICE.recording = false; VOICE.live = null; try { ctx && ctx.close(); } catch (x) {} renderAi(); return toast('Δεν δόθηκε πρόσβαση στο μικρόφωνο. Επιτρέψτε το από τις ρυθμίσεις του browser.', true); }
   if (L !== VOICE.live) { L.stream.getTracks().forEach(x => x.stop()); return; }

@@ -16,6 +16,7 @@ const push = ev => { const s = `data: ${JSON.stringify(ev)}\n\n`; clients.forEac
 const uidOk = u => /^[0-9a-f-]{36}$/.test(u || '');
 let aiScript = []; // σενάριο απαντήσεων AI για τον έλεγχο
 const aiLog = [];
+const ttsLog = [];
 
 async function asUser(uid, fn) {
   return sql.begin(async tx => { await tx.unsafe('set local role authenticated'); await tx`select set_config('request.jwt.claim.sub', ${uid}, true)`; return fn(tx); });
@@ -39,6 +40,7 @@ async function handle(req, res) {
     if (u.pathname === '/mock_supabase.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return res.end(readFileSync(join(root, 'tests/ui/mock_supabase.js'))); }
     if (u.pathname === '/__ai_script' && req.method === 'POST') { aiScript = JSON.parse(await body(req)); aiLog.length = 0; return J(res, { ok: true }); }
     if (u.pathname === '/__ai_log') return J(res, aiLog);
+    if (u.pathname === '/__tts_log') return J(res, ttsLog);
     if (u.pathname.startsWith('/db/')) {
       if (!uidOk(uid)) return J(res, { error: 'no auth' }, 401);
       const b = JSON.parse(await body(req) || '{}');
@@ -104,7 +106,12 @@ async function handle(req, res) {
         const next = aiScript.shift() || { content: [{ type: 'text', text: 'Τέλος σεναρίου.' }], stop_reason: 'end_turn' };
         return J(res, next);
       }
-      if (name === 'tts') return J(res, { error: 'Δεν έχει ρυθμιστεί το ElevenLabs.' }, 503);
+      if (name === 'tts') {
+        if (!process.env.TTS_OK) return J(res, { error: 'Δεν έχει ρυθμιστεί το ElevenLabs.' }, 503);
+        const b = JSON.parse(await body(req)); ttsLog.push(b); // 0,4" ήχος (WAV) για τον έλεγχο αναπαραγωγής
+        const n = 3200, w = Buffer.alloc(44 + n, 128); w.write('RIFF', 0); w.writeUInt32LE(36 + n, 4); w.write('WAVEfmt ', 8); w.writeUInt32LE(16, 16); w.writeUInt16LE(1, 20); w.writeUInt16LE(1, 22); w.writeUInt32LE(8000, 24); w.writeUInt32LE(8000, 28); w.writeUInt16LE(1, 32); w.writeUInt16LE(8, 34); w.write('data', 36); w.writeUInt32LE(n, 40);
+        res.writeHead(200, { 'Content-Type': 'audio/wav' }); return res.end(w);
+      }
       if (name === 'stt') { const b = await body(req); if ((req.headers['content-type'] || '').includes('json')) { if (process.env.NO_LIVE) return J(res, { error: 'Η ζωντανή καταγραφή δεν είναι διαθέσιμη.' }, 502); return J(res, { token: 'tok-live', language: 'el' }); } return J(res, { text: 'Πόσα προϊόντα έχουμε;' }); }
       return J(res, { error: 'unknown' }, 404);
     }
